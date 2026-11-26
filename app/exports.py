@@ -9,7 +9,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 
-from app.constants import STAGE_HEADINGS
+from app.constants import DEVICE_TYPES, STAGE_HEADINGS
 from app.storage import thumbnail_bytes
 
 NAVY = "0F4C81"
@@ -153,7 +153,7 @@ def _devices(ws, view):
         ]
         _write_row(ws, index, values)
     _finish_table(ws, 4, len(headers), 5 + len(view["devices"]))
-    _list_validation(ws, "A5:A200", '"Server,Router,Switch,Firewall,AP,NVR,Other"')
+    _list_validation(ws, "A5:A200", '"' + ",".join(DEVICE_TYPES) + '"')
     widths = [12, 18, 16, 16, 16, 14, 18, 16, 42, 28]
     for i, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = width

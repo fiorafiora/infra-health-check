@@ -1,6 +1,6 @@
 """Fixed choices and the monthly checklist order."""
 
-DEVICE_TYPES = ("Server", "Router", "Switch", "Firewall", "AP", "NVR", "Other")
+DEVICE_TYPES = ("Server", "Router", "Switch", "Firewall", "Wi-Fi", "NVR", "Other")
 DEVICE_STATUSES = ("Normal", "Abnormal")
 CHECK_RESULTS = ("Normal", "Abnormal", "N/A")
 CONNECTION_METHODS = ("VPN", "AnyDesk", "Other")
@@ -15,7 +15,7 @@ FIXED_ITEMS: tuple[tuple[int, str, str], ...] = (
     (1, "Outage first", "Ping core / gateway"),
     (2, "Outage first", "Ping servers"),
     (3, "Outage first", "Ping NVR"),
-    (4, "Outage first", "Controller AP offline list"),
+    (4, "Outage first", "Controller Wi-Fi offline list"),
     (5, "Business critical", "NVR / server disk or RAID"),
     (6, "Business critical", "Disk space"),
     (7, "Business critical", "Last successful backup"),

@@ -220,7 +220,7 @@
     {% endif %}
     <form class="inline-add" method="post" action="/devices/{{ device.id }}/checks">
       <input type="hidden" name="check_id" value="{{ current.id }}">
-      <label>Check<input name="name" required maxlength="200" placeholder="HDD, playback, AP down"></label>
+      <label>Check<input name="name" required maxlength="200" placeholder="HDD, playback, Wi-Fi down"></label>
       <label>Method<input name="command" maxlength="500" placeholder="show interfaces status"></label>
       <button class="btn small" type="submit">Add check</button>
     </form>

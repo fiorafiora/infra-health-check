@@ -89,7 +89,7 @@ def test_client_a_november_compares_with_last_month(client):
     page = _site_page(client, home.text, "Company A", "Main store")
     assert page.status_code == 200
     assert 'data-light="Red"' in page.text
-    assert "Which AP is down" in page.text
+    assert "Which Wi-Fi is down" in page.text
     assert "HDD" in page.text
     assert "show interfaces status" in page.text
     assert "192.0.2.20" in page.text
@@ -131,7 +131,7 @@ def test_excel_and_pdf_export(client):
     devices = workbook["Devices"]
     assert devices["A4"].value == "Type"
     blobs = [str(devices.cell(row, 9).value or "") for row in range(5, 12)]
-    assert any("Which AP is down" in blob and "Abnormal" in blob for blob in blobs)
+    assert any("Which Wi-Fi is down" in blob and "Abnormal" in blob for blob in blobs)
     assert any("HDD" in blob for blob in blobs)
 
     assert cover["B6"].value == "Main store"
@@ -149,7 +149,7 @@ def test_excel_and_pdf_export(client):
     branch_check = re.search(r"/checks/(\d+)/export", started.text).group(1)
     client.post(
         f"/sites/{branch_site}/devices",
-        data={"check_id": branch_check, "device_type": "AP", "name": "BR-AP", "added_on": "2026-11-03"},
+        data={"check_id": branch_check, "device_type": "Wi-Fi", "name": "BR-AP", "added_on": "2026-11-03"},
         follow_redirects=True,
     )
     logged = client.post(

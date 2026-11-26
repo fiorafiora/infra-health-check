@@ -10,7 +10,7 @@ def test_fixed_checklist_order():
         "Ping core / gateway",
         "Ping servers",
         "Ping NVR",
-        "Controller AP offline list",
+        "Controller Wi-Fi offline list",
         "NVR / server disk or RAID",
         "Disk space",
         "Last successful backup",

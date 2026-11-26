@@ -14,6 +14,7 @@ def migrate(engine: Engine) -> None:
     # foreign_keys must be switched outside a transaction, or SQLite ignores it.
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        _rename_ap_to_wifi(conn)
         if not _has_column(conn, "devices", "client_id"):
             return
         _ensure_sites(conn)
@@ -22,6 +23,15 @@ def migrate(engine: Engine) -> None:
             _rebuild_checks(conn)
         if _has_column(conn, "issues", "client_id"):
             _rebuild_issues(conn)
+
+
+def _rename_ap_to_wifi(conn) -> None:
+    if _has_column(conn, "devices", "device_type"):
+        conn.execute(text("UPDATE devices SET device_type = 'Wi-Fi' WHERE device_type = 'AP'"))
+    if _has_column(conn, "device_checks", "name"):
+        conn.execute(
+            text("UPDATE device_checks SET name = 'Which Wi-Fi is down' WHERE name = 'Which AP is down'")
+        )
 
 
 def _has_column(conn, table: str, column: str) -> bool:

@@ -306,7 +306,7 @@ def _seed(db: Session, upload_dir: Path) -> None:
         )
     _seed_simple_checks(db, (oct_b, nov_b), fw2, "Licence", "show license", "Normal")
     _seed_simple_checks(db, (oct_b, nov_b), srv2, "Disk space", "", "Normal")
-    _seed_simple_checks(db, (oct_b, nov_b), ap2, "Which AP is down", "", "Normal")
+    _seed_simple_checks(db, (oct_b, nov_b), ap2, "Which Wi-Fi is down", "", "Normal")
     db.add(
         Expiry(
             client_id=client_b.customer_id,
@@ -376,7 +376,7 @@ def _seed_branch(db, site: Site) -> None:
     )
     access_point = Device(
         site_id=site.id,
-        device_type="AP",
+        device_type="Wi-Fi",
         name="AP-BR",
         model="Model-AP",
         serial_no="SN-AP-BR",
@@ -404,7 +404,7 @@ def _seed_branch(db, site: Site) -> None:
         ],
     )
     _seed_simple_checks(db, (october,), switch, "Interfaces", "show interfaces status", "Normal")
-    _seed_simple_checks(db, (october,), access_point, "Which AP is down", "", "Normal")
+    _seed_simple_checks(db, (october,), access_point, "Which Wi-Fi is down", "", "Normal")
 
 
 def _define_check(db, device, name, command, sort_order):
@@ -430,7 +430,7 @@ def _seed_client_a_checks(db, oct_a, nov_a, srv, fw, sw, ap, nvr):
     disk = _define_check(db, srv, "Disk space", "", 10)
     licence = _define_check(db, fw, "Licence", "show license", 10)
     interfaces = _define_check(db, sw, "Interfaces", "show interfaces status", 10)
-    ap_down = _define_check(db, ap, "Which AP is down", "", 10)
+    ap_down = _define_check(db, ap, "Which Wi-Fi is down", "", 10)
     hdd = _define_check(db, nvr, "HDD", "", 10)
     playback = _define_check(db, nvr, "Playback", "", 20)
     for monthly in (oct_a, nov_a):
@@ -467,7 +467,7 @@ def _devices_a(db: Session, client: Client):
         ("Server", "SRV-01", "Model-X", "SN-XXXX", "192.0.2.10", "v1.2.0", D(2027, 6, 30), 10),
         ("Firewall", "FW-01", "Model-FW", "SN-FW001", "192.0.2.1", "v2.0.0", D(2026, 12, 31), 20),
         ("Switch", "SW-01", "Model-SW", "SN-SW001", "192.0.2.2", "v1.0.5", D(2027, 3, 31), 30),
-        ("AP", "AP-01", "Model-AP", "SN-AP001", "192.0.2.20", "v3.1.0", None, 40),
+        ("Wi-Fi", "AP-01", "Model-AP", "SN-AP001", "192.0.2.20", "v3.1.0", None, 40),
         ("NVR", "NVR-01", "Model-NVR", "SN-NVR001", "192.0.2.30", "v4.0.0", None, 50),
     ]
     devices = []
@@ -494,7 +494,7 @@ def _devices_b(db: Session, client: Client):
     rows = [
         ("Firewall", "FW-02", "Model-FW", "SN-FW002", "192.0.2.101", "v2.1.0", D(2028, 6, 30), 10),
         ("Server", "SRV-02", "Model-X", "SN-SRV002", "192.0.2.110", "v1.4.0", D(2028, 6, 30), 20),
-        ("AP", "AP-02", "Model-AP", "SN-AP002", "192.0.2.120", "v3.2.0", None, 30),
+        ("Wi-Fi", "AP-02", "Model-AP", "SN-AP002", "192.0.2.120", "v3.2.0", None, 30),
     ]
     devices = []
     for device_type, name, model, serial_no, ip_address, firmware, warranty, sort_order in rows:

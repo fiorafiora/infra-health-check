@@ -78,13 +78,13 @@ An older database, from before customers had separate sites, is updated on start
 
 - Several customers. The customer list nests each site under its customer, and the list can be filtered by customer or site. Each site row shows the last check date. Each site has its own devices, its own month, and its own PDF and Excel report. On a site, save each device on its own. Other stores are not included.
 - Add a device in its own section. The device list below is the checks for the open month.
-- Device types: Server, Router, Switch, Firewall, AP, NVR, Other.
+- Device types: Server, Router, Switch, Firewall, Wi-Fi, NVR, Other.
 - Start a month with the check date, engineer, duration, and notes.
 - Overall light:
   - **Red** — a device check is Abnormal
   - **Green** — at least one check is filled in, and none are Abnormal
   - **Not started** — no check result yet
-- Each device has its own check list, set once. An NVR might have HDD and playback. An AP might have which AP is down. A router or switch can store the command to run. A new month loads those checks with blank results.
+- Each device has its own check list, set once. An NVR might have HDD and playback. A Wi-Fi device might record which one is down. A router or switch can store the method to run. A new month loads those checks with blank results.
 - On the device, mark each check Normal or Abnormal, write the issue, and upload a screenshot.
 - Screenshots attach to a device check. Thumbnails open to the full image. 5 MB each, 8 per item.
 - Export one site and month as PDF and Excel. The PDF embeds up to 8 thumbnails. The Excel file lists file names.
