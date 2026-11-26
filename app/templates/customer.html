@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }}{% endblock %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/">Customers</a></p>
+    <h1>{{ customer.name }}</h1>
+    {% if customer.is_demo %}<p class="tag-line">Example record, not a real customer.</p>{% endif %}
+    {% if customer.notes %}<p class="lede">{{ customer.notes }}</p>{% endif %}
+  </div>
+  <details class="card tight">
+    <summary>Edit customer</summary>
+    <form method="post" action="/customers/{{ customer.id }}">
+      <label>Customer name<input name="name" required maxlength="200" value="{{ customer.name }}"></label>
+      <label>Notes<textarea name="notes" rows="3">{{ customer.notes or '' }}</textarea></label>
+      <button class="btn" type="submit">Save</button>
+    </form>
+    <form method="post" action="/customers/{{ customer.id }}/delete">
+      <button class="btn danger" type="submit" data-confirm="Delete {{ customer.name }} and every site under it?">Delete customer</button>
+    </form>
+  </details>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <h2>Sites</h2>
+    <input id="site-filter" type="search" placeholder="Filter sites" aria-label="Filter sites">
+  </div>
+  <p class="hint">Sites are listed under this customer. Each site’s devices and last check stay on that row. Filter the site name to narrow the list.</p>
+  {% if rows %}
+  <div class="sheet">
+    <table class="list">
+      <thead>
+        <tr>
+          <th>Site</th>
+          <th>Last check</th>
+          <th>Overall</th>
+          <th>Devices</th>
+          <th></th>
+        </tr>
+      </thead>
+      {% for row in rows %}
+      <tbody data-site-group="{{ row.site.name }}">
+        <tr data-site="{{ row.site.name }}" data-light="{{ row.light }}">
+          <td><a class="name-link" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">{{ row.site.name }}</a></td>
+          <td>{{ row.check_date or "—" }}</td>
+          <td>{% if row.light %}<span class="light" data-light="{{ row.light }}">{{ row.light }}</span>{% else %}—{% endif %}</td>
+          <td>{{ row.device_count }}</td>
+          <td><a class="btn small ghost" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">Open</a></td>
+        </tr>
+        <tr class="child">
+          <td colspan="5">
+            {% if row.devices %}
+              {% for device in row.devices %}{{ device.device_type }} · {{ device.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+            {% else %}
+              No devices on this site yet.
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No sites yet.</p>
+  {% endif %}
+  <form class="inline-add" method="post" action="/customers/{{ customer.id }}/sites">
+    <label>New site<input name="name" required maxlength="200" placeholder="For example, Mong Kok store"></label>
+    <button class="btn" type="submit">Add site</button>
+  </form>
+</section>
+{% endblock %}

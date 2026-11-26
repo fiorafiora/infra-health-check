@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Customers · Monthly remote health check{% endblock %}
+{% block content %}
+<section class="page-head">
+  <h1>Customers</h1>
+</section>
+
+{% if has_demo %}
+<aside class="banner demo">
+  Example data only (Company A–C, 192.0.2.x). Delete before real use.
+  Company A has two sites, each with its own devices. Main store’s latest month is red. Branch store is green. Company B is green. Company C is not started.
+</aside>
+{% endif %}
+
+<section class="layout-home">
+  <div class="card">
+    <div class="card-head">
+      <h2>Customers</h2>
+      <input id="client-filter" type="search" placeholder="Filter by customer or site" aria-label="Filter by customer or site">
+    </div>
+    {% if groups %}
+    <div class="sheet">
+      <table class="list">
+        <thead>
+          <tr>
+            <th>Customer / site</th>
+            <th>Last check</th>
+            <th>Overall</th>
+            <th>Devices</th>
+            <th></th>
+          </tr>
+        </thead>
+        {% for group in groups %}
+        <tbody class="customer-group" data-client="{{ group.customer.name }}">
+          <tr class="group-head">
+            <td colspan="5">
+              <a class="name-link" href="/customers/{{ group.customer.id }}">{{ group.customer.name }}</a>
+              {% if group.customer.is_demo %}<span class="tag">Example</span>{% endif %}
+            </td>
+          </tr>
+          {% for row in group.sites %}
+          <tr data-client="{{ group.customer.name }}" data-site="{{ row.site.name }}" data-light="{{ row.light }}">
+            <td class="nest-site">
+              <a class="name-link" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">{{ row.site.name }}</a>
+            </td>
+            <td>{{ row.check_date or "—" }}</td>
+            <td>{% if row.light %}<span class="light" data-light="{{ row.light }}">{{ row.light }}</span>{% else %}—{% endif %}</td>
+            <td>{{ row.device_count }}</td>
+            <td><a class="btn small ghost" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">Open</a></td>
+          </tr>
+          {% else %}
+          <tr data-client="{{ group.customer.name }}" data-site="">
+            <td class="nest-site" colspan="4">No sites yet</td>
+            <td><a class="btn small ghost" href="/customers/{{ group.customer.id }}">Open</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">No customers yet. Add the first one on the right.</p>
+    {% endif %}
+  </div>
+
+  <form class="card form-card" method="post" action="/customers">
+    <h2>Add a customer</h2>
+    <label>Customer name<input name="name" required maxlength="200" placeholder="For example, Company A"></label>
+    <label>Notes<textarea name="notes" rows="3" maxlength="4000" placeholder="Optional"></textarea></label>
+    <button class="btn" type="submit">Add</button>
+  </form>
+</section>
+{% endblock %}

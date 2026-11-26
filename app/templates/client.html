@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% from "_macros.html" import options, thumbs, uploader, delete_shot %}
+{% set next = "/sites/" ~ site.id ~ ("?check=" ~ current.id if current else "") %}
+{% block title %}{{ customer.name }} · {{ site.name }}{% endblock %}
+{% block content %}
+<section class="page-head client-head">
+  <div>
+    <p class="eyebrow"><a href="/">Customers</a> / <a href="/customers/{{ customer.id }}">{{ customer.name }}</a> / {{ site.name }}</p>
+    <h1>{{ customer.name }} <span class="site-name">{{ site.name }}</span></h1>
+    {% if customer.is_demo %}<p class="tag-line">Example record, not a real customer.</p>{% endif %}
+    {% if customer.notes %}<p class="lede">{{ customer.notes }}</p>{% endif %}
+  </div>
+  <details class="card tight">
+    <summary>Edit site</summary>
+    <form method="post" action="/sites/{{ site.id }}">
+      <input type="hidden" name="check_id" value="{{ current.id if current else '' }}">
+      <label>Site name<input name="name" required maxlength="200" value="{{ site.name }}"></label>
+      <button class="btn" type="submit">Save</button>
+    </form>
+  </details>
+</section>
+
+<nav class="subnav" aria-label="On this page">
+  <a href="#months">Months</a>
+  {% if current %}<a href="#summary">Cover</a>{% endif %}
+  <a href="#add-device">Add device</a>
+  {% if current %}<a href="#devices">Devices</a>{% endif %}
+</nav>
+
+<section id="months" class="card">
+  <div class="card-head">
+    <h2>Months</h2>
+    {% if pills %}
+    <div class="pills">
+      {% for pill in pills %}
+      <a class="pill{% if current and pill.check.id == current.id %} active{% endif %}" data-month="{{ pill.check.year_month }}" data-light="{{ pill.light }}" href="/sites/{{ site.id }}?check={{ pill.check.id }}">
+        <span>{{ pill.check.year_month }}</span>
+        <span class="light" data-light="{{ pill.light }}">{{ pill.light }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <details class="start-month"{% if not current %} open{% endif %}>
+    <summary>{% if current %}Start another month{% else %}Start the first check{% endif %}</summary>
+    <form class="grid-form" method="post" action="/sites/{{ site.id }}/checks">
+      <label>Check date<input type="date" name="check_date" required value="{{ today.isoformat() }}"></label>
+      <label>Engineer<input name="engineer" required maxlength="100" value="{{ current.engineer if current else '' }}" placeholder="For example, K L"></label>
+      <label>Duration (hours)<input name="duration_hours" inputmode="decimal" placeholder="1.5" value=""></label>
+      <label class="span-2">Notes<textarea name="notes" rows="2" placeholder="Optional"></textarea></label>
+      <div class="span-2">
+        <button class="btn" type="submit">Create this month</button>
+        <p class="hint">One report per site per month. Other stores are not included. A new month loads this site’s devices and the checks you set on each device. Results start blank.</p>
+      </div>
+    </form>
+  </details>
+</section>
+
+<section id="add-device" class="card">
+  <h2>Add device</h2>
+  <p class="hint">Devices added here belong to {{ site.name }} only. They are not copied to other stores.</p>
+  <details class="start-month" open>
+    <summary>Add or edit devices</summary>
+    <div class="split">
+      <form class="subcard" method="post" action="/sites/{{ site.id }}/devices">
+        <h3>Add a device</h3>
+        <input type="hidden" name="check_id" value="{{ current.id if current else '' }}">
+        <label>Type<select name="device_type" required>{{ options(DEVICE_TYPES, "Server") }}</select></label>
+        <label>Name<input name="name" required maxlength="200" placeholder="NVR-01"></label>
+        <label>IP address<input name="ip_address" maxlength="100" placeholder="192.0.2.30"></label>
+        <label>Model<input name="model" maxlength="200"></label>
+        <label>Serial<input name="serial_no" maxlength="200"></label>
+        <label>Firmware<input name="firmware" maxlength="100"></label>
+        <label>Warranty / support expiry<input type="date" name="warranty_expiry"></label>
+        <label>On list from<input type="date" name="added_on" value="{{ current.check_date.isoformat() if current else today.isoformat() }}"></label>
+        <button class="btn" type="submit">Add device</button>
+      </form>
+      <div class="subcard">
+        <h3>Edit a device</h3>
+        {% for device in devices %}
+        <details>
+          <summary>{{ device.device_type }} · {{ device.name }}</summary>
+          <form method="post" action="/devices/{{ device.id }}">
+            <input type="hidden" name="check_id" value="{{ current.id if current else '' }}">
+            <label>Type<select name="device_type">{{ options(DEVICE_TYPES, device.device_type) }}</select></label>
+            <label>Name<input name="name" required value="{{ device.name }}"></label>
+            <label>Model<input name="model" value="{{ device.model or '' }}"></label>
+            <label>Serial<input name="serial_no" value="{{ device.serial_no or '' }}"></label>
+            <label>IP address<input name="ip_address" value="{{ device.ip_address or '' }}"></label>
+            <label>Firmware<input name="firmware" value="{{ device.firmware or '' }}"></label>
+            <label>Warranty / support expiry<input type="date" name="warranty_expiry" value="{{ device.warranty_expiry.isoformat() if device.warranty_expiry else '' }}"></label>
+            <label>Sort order<input name="sort_order" inputmode="numeric" value="{{ device.sort_order }}"></label>
+            <button class="btn small" type="submit">Save</button>
+          </form>
+          <form method="post" action="/devices/{{ device.id }}/delete">
+            <input type="hidden" name="check_id" value="{{ current.id if current else '' }}">
+            <button class="link danger" type="submit" data-confirm="Delete {{ device.name }}?">Delete</button>
+          </form>
+        </details>
+        {% else %}
+        <p class="empty">No devices yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+</section>
+
+{% if not current %}
+<section class="card empty-state">
+  <h2>No month yet</h2>
+  <p>Add this store’s devices above, then start a month. The report will not include other stores.</p>
+</section>
+{% else %}
+<section id="summary" class="card hero-card" data-light="{{ view.light }}">
+  <div class="hero-top">
+    <div>
+      <p class="eyebrow">Overall</p>
+      <p class="hero-light">{{ view.light }}</p>
+      <p class="hint">This report is only {{ site.name }}. Other stores of {{ customer.name }} stay in their own reports. Red if any check is Abnormal. Green when checks are filled and none are abnormal.</p>
+    </div>
+    <div class="exports">
+      <a class="btn" href="/checks/{{ current.id }}/export.pdf">Export PDF</a>
+      <a class="btn ghost" href="/checks/{{ current.id }}/export.xlsx">Export Excel</a>
+    </div>
+  </div>
+  <ul class="stats">
+    <li><span>Abnormal checks</span><strong>{{ view.counts.abnormal_items }}</strong></li>
+    <li><span>Checks filled</span><strong>{{ view.counts.filled_items }}</strong></li>
+    <li><span>Abnormal devices</span><strong>{{ view.counts.abnormal_devices }}</strong></li>
+  </ul>
+  <p class="snapshot">This check records what you saw at that moment. Nothing alerts you between monthly visits, and it is not 24-hour monitoring.</p>
+  <details class="rules">
+    <summary>How the light is decided</summary>
+    <ul>
+      <li>Red: a device check is Abnormal.</li>
+      <li>Green: at least one check is filled in, and none are Abnormal.</li>
+      <li>Not started: no check result yet.</li>
+    </ul>
+  </details>
+  <form class="grid-form cover-form" method="post" action="/checks/{{ current.id }}">
+    <label>Check date<input type="date" name="check_date" required value="{{ current.check_date.isoformat() }}"></label>
+    <label>Engineer<input name="engineer" required maxlength="100" value="{{ current.engineer }}"></label>
+    <label>Duration (hours)<input name="duration_hours" inputmode="decimal" value="{{ current.duration_hours|hours }}"></label>
+    <label class="span-2">Notes<textarea name="notes" rows="2">{{ current.notes or '' }}</textarea></label>
+    <div class="row-actions span-2">
+      <button class="btn" type="submit">Save cover</button>
+    </div>
+  </form>
+  <form method="post" action="/checks/{{ current.id }}/delete">
+    <button class="link danger" type="submit" data-confirm="Delete the {{ current.year_month }} check? Device records and issue IDs stay. This month’s status and checklist are removed.">Delete this month</button>
+  </form>
+</section>
+
+<section id="devices" class="card">
+  <div class="card-head">
+    <h2>Devices · {{ site.name }}</h2>
+    <p class="hint">Do each device on this site by itself. Saving one device does not change the others, and other sites are not included.</p>
+  </div>
+
+  {% if view.devices %}
+  {% for row in view.devices %}
+  {% set device = row.device %}
+  <article class="device-block" id="device-{{ device.id }}">
+    <header class="device-head">
+      <span class="device-name">{{ device.name }}</span>
+      <span class="device-ip">{{ device.ip_address or "—" }}</span>
+      <span class="device-type">{{ device.device_type }}</span>
+      <span class="muted">{{ device.model or "" }} {{ device.firmware or "" }}</span>
+    </header>
+    <form id="device-form-{{ device.id }}" method="post" action="/checks/{{ current.id }}/device-checks">
+      <input type="hidden" name="device_anchor" value="device-{{ device.id }}">
+    </form>
+    {% if row.checks %}
+    <table class="mini">
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Method</th>
+          <th>Result</th>
+          <th>Issue</th>
+          <th>Last month</th>
+          <th>Screenshot</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in row.checks %}
+        {% set item = line.definition %}
+        {% set result = line.result %}
+        <tr>
+          <td>{{ item.name }}</td>
+          <td class="muted">{{ item.command or "—" }}</td>
+          <td>
+            <select form="device-form-{{ device.id }}" name="dresult_{{ result.id }}">
+              {{ options(DEVICE_RESULTS, result.result, true) }}
+            </select>
+          </td>
+          <td><input form="device-form-{{ device.id }}" name="dissue_{{ result.id }}" value="{{ result.issue or '' }}" placeholder="Issue"></td>
+          <td>{% if line.prev_result %}<span class="status" data-status="{{ line.prev_result }}">{{ line.prev_result }}</span>{% else %}—{% endif %}</td>
+          <td>
+            {{ thumbs(line.attachments) }}
+            {% for file in line.attachments %}{{ delete_shot(file, next ~ "#device-" ~ device.id) }}{% endfor %}
+            {{ uploader("device_check_result", result.id, next ~ "#device-" ~ device.id) }}
+          </td>
+          <td>
+            <form method="post" action="/device-checks/{{ item.id }}/delete">
+              <input type="hidden" name="check_id" value="{{ current.id }}">
+              <button class="link danger" type="submit" data-confirm="Remove check “{{ item.name }}” from {{ device.name }}?">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="savebar">
+      <button class="btn" type="submit" form="device-form-{{ device.id }}">Save {{ device.name }}</button>
+    </div>
+    {% else %}
+    <p class="empty">No checks on this device yet.</p>
+    {% endif %}
+    <form class="inline-add" method="post" action="/devices/{{ device.id }}/checks">
+      <input type="hidden" name="check_id" value="{{ current.id }}">
+      <label>Check<input name="name" required maxlength="200" placeholder="HDD, playback, Wi-Fi down"></label>
+      <label>Method<input name="command" maxlength="500" placeholder="show interfaces status"></label>
+      <button class="btn small" type="submit">Add check</button>
+    </form>
+  </article>
+  {% endfor %}
+  {% else %}
+  <p class="empty">No devices on this month. Add one above. Devices from other sites are not listed here.</p>
+  {% endif %}
+
+</section>
+
+{% endif %}
+{% endblock %}

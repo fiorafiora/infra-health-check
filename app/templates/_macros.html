@@ -1,0 +1,42 @@
+{% macro options(choices, current, blank=false) %}
+  {% if blank %}<option value=""{% if not current %} selected{% endif %}>—</option>{% endif %}
+  {% for choice in choices %}
+  <option value="{{ choice }}"{% if current == choice %} selected{% endif %}>{{ choice }}</option>
+  {% endfor %}
+{% endmacro %}
+
+{% macro thumbs(files) %}
+  {% if files %}
+  <div class="thumbs">
+    {% for file in files %}
+    <figure class="thumb">
+      <a href="/attachments/{{ file.id }}" class="thumb-link" data-full="/attachments/{{ file.id }}">
+        <img src="/attachments/{{ file.id }}?thumb=1" alt="{{ file.original_name }}">
+      </a>
+      <figcaption title="{{ file.original_name }}">{{ file.original_name }}</figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro uploader(target_type, target_id, next) %}
+<form class="uploader" method="post" action="/attachments" enctype="multipart/form-data">
+  <input type="hidden" name="target_type" value="{{ target_type }}">
+  <input type="hidden" name="target_id" value="{{ target_id }}">
+  <input type="hidden" name="next" value="{{ next }}">
+  <label class="file-pick">
+    <input type="file" name="files" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple>
+    <span>Choose image</span>
+  </label>
+  <span class="file-name">No file selected</span>
+  <button class="btn small" type="submit">Upload</button>
+</form>
+{% endmacro %}
+
+{% macro delete_shot(file, next) %}
+<form method="post" action="/attachments/{{ file.id }}/delete">
+  <input type="hidden" name="next" value="{{ next }}">
+  <button class="link danger" type="submit" data-confirm="Delete screenshot “{{ file.original_name }}”?">Delete</button>
+</form>
+{% endmacro %}
