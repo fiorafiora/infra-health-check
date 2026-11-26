@@ -43,7 +43,6 @@ def build_xlsx(view: dict) -> bytes:
     _cover(wb.active, view)
     _devices(wb.create_sheet("Devices"), view)
     _issues(wb.create_sheet("Issues"), view)
-    _expiries(wb.create_sheet("Expiries"), view)
     wb.properties.title = f"{client.name} {client.site} {check.year_month} health check"
     wb.properties.creator = "Monthly remote health check"
     buffer = BytesIO()
@@ -66,7 +65,7 @@ def _cover(ws, view):
     ws.sheet_properties.tabColor = NAVY
     ws["A1"] = "Monthly remote health check"
     ws.merge_cells("A1:D1")
-    ws["A2"] = "Monthly remote health check (VPN / AnyDesk)"
+    ws["A2"] = "Monthly remote health check"
     ws.merge_cells("A2:D2")
     ws["A4"] = "This check"
     rows = [
@@ -74,10 +73,9 @@ def _cover(ws, view):
         (6, "Site", client.site),
         (7, "Check date", check.check_date),
         (8, "Engineer", check.engineer),
-        (9, "Connection", check.connection_method),
-        (10, "Duration (hours)", check.duration_hours),
-        (11, "Overall", view["light"]),
-        (12, "Notes", check.notes or ""),
+        (9, "Duration (hours)", check.duration_hours),
+        (10, "Overall", view["light"]),
+        (11, "Notes", check.notes or ""),
     ]
     for row, label, value in rows:
         ws.cell(row, 1, label)
@@ -89,22 +87,16 @@ def _cover(ws, view):
         (15, "Abnormal checklist items", counts["abnormal_items"]),
         (16, "Checklist items filled", counts["filled_items"]),
         (17, "Abnormal devices", counts["abnormal_devices"]),
-        (18, "Open follow-ups", counts["open_followups"]),
-        (19, "Expired", counts["expired"]),
-        (20, "Due in 30 days", counts["within_30"]),
-        (21, "Due in 90 days", counts["within_90"]),
     ]
     for row, label, value in summary:
         ws.cell(row, 1, label)
         ws.cell(row, 2, value)
     ws["A23"] = "How the light is decided"
     legend = [
-        (24, "Red: a checklist item or device is Abnormal, or something is Expired."),
-        (25, "Amber: no red condition, but a follow-up is still open, or something is due within 30 or 90 days."),
-        (26, "Green: the checklist is filled in, with no red or amber condition."),
-        (27, "Not started: the checklist is empty, with no abnormal item, open follow-up, or expiry warning."),
-        (29, "A check records that moment only. It is not 24-hour monitoring."),
-        (30, "Days remaining use this check date, not the export date."),
+        (24, "Red: a device check is Abnormal."),
+        (25, "Green: at least one check is filled in, and none are Abnormal."),
+        (26, "Not started: no check result yet."),
+        (28, "A check records that moment only. It is not 24-hour monitoring."),
         (31, "Repeat issues keep the same ID. Screenshot file names are listed; images are not embedded in this workbook."),
     ]
     for row, text in legend:
@@ -118,7 +110,7 @@ def _cover(ws, view):
     for row in range(5, 13):
         _label(ws.cell(row, 1))
         _value(ws.cell(row, 2))
-    _paint_light(ws.cell(11, 2), view["light"])
+    _paint_light(ws.cell(10, 2), view["light"])
     for row in range(15, 22):
         _label(ws.cell(row, 1))
         cell = ws.cell(row, 2)
@@ -592,7 +584,7 @@ def _pdf_html(view: dict, images: list[dict], skipped: list[str]) -> str:
     return f"""
     <article>
       <header>
-        <p class="kicker">Monthly remote health check (VPN / AnyDesk)</p>
+        <p class="kicker">Monthly remote health check</p>
         <h1>Monthly remote health check</h1>
         <p class="meta">{esc(client.name)}　{esc(client.site)}　{check.year_month}</p>
       </header>
@@ -604,22 +596,19 @@ def _pdf_html(view: dict, images: list[dict], skipped: list[str]) -> str:
         <ul>
           <li>Check date  {check.check_date.isoformat()}</li>
           <li>Engineer  {esc(check.engineer)}</li>
-          <li>Connection  {esc(check.connection_method)}</li>
           <li>Duration  {duration} h</li>
         </ul>
       </section>
       <p class="note">{esc(check.notes or "")}</p>
-      <p class="note">This check records that moment only. It is not 24-hour monitoring. Days remaining use the check date {check.check_date.isoformat()}, not the export date.</p>
+      <p class="note">This check records that moment only. It is not 24-hour monitoring.</p>
       <h2>This month</h2>
       <table class="stats">
         <tr>
-          <th>Abnormal items</th><th>Filled</th><th>Abnormal devices</th><th>Open follow-ups</th>
-          <th>Expired</th><th>Due in 30 days</th><th>Due in 90 days</th>
+          <th>Abnormal checks</th><th>Filled</th><th>Abnormal devices</th>
         </tr>
         <tr>
           <td>{counts["abnormal_items"]}</td><td>{counts["filled_items"]}</td>
-          <td>{counts["abnormal_devices"]}</td><td>{counts["open_followups"]}</td>
-          <td>{counts["expired"]}</td><td>{counts["within_30"]}</td><td>{counts["within_90"]}</td>
+          <td>{counts["abnormal_devices"]}</td>
         </tr>
       </table>
       <h2>Devices</h2>
@@ -637,14 +626,6 @@ def _pdf_html(view: dict, images: list[dict], skipped: list[str]) -> str:
           <th>Status</th><th>Update</th><th>Action</th><th>Closed on</th><th>Screenshot</th>
         </tr>
         {''.join(issue_rows) or "<tr><td colspan='10'>No issues</td></tr>"}
-      </table>
-      <h2>Expiries</h2>
-      <p class="note">Days left are counted from {check.check_date.isoformat()}.</p>
-      <table>
-        <tr>
-          <th>Type</th><th>Name</th><th>Related device</th><th>Expiry date</th><th>Days left</th><th>Status</th><th>Notes</th>
-        </tr>
-        {''.join(expiry_rows) or "<tr><td colspan='7'>No expiries</td></tr>"}
       </table>
       <h2>Screenshots</h2>
       <div class="shots">{''.join(figures) or "<p class='note'>No screenshots this month.</p>"}</div>

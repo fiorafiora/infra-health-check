@@ -186,14 +186,14 @@ def start_check(
     *,
     check_date: date,
     engineer: str,
-    connection_method: str,
+    connection_method: str | None = None,
     duration_hours: float | None,
     notes: str | None,
 ) -> Check:
     engineer = clean(engineer, 100) or ""
     if not engineer:
         raise FormError("Enter the engineer.")
-    connection_method = require_choice(connection_method, CONNECTION_METHODS, "connection")
+    connection_method = clean(connection_method, 20) or ""
     ym = year_month(check_date)
     exists = db.scalar(
         select(Check.id).where(Check.client_id == client.id, Check.year_month == ym)
@@ -542,42 +542,17 @@ def build_check_view(db: Session, check: Check) -> dict:
             }
         )
 
-    expiries = db.scalars(
-        select(Expiry).where(Expiry.client_id == client.id).order_by(Expiry.expiry_date, Expiry.id)
-    ).all()
     expiry_views = []
     expired = within_30 = within_90 = 0
-    for expiry in expiries:
-        days, status = expiry_state(expiry.expiry_date, check.check_date)
-        if status == "Expired":
-            expired += 1
-        elif status == "Due in 30 days":
-            within_30 += 1
-        elif status == "Due in 90 days":
-            within_90 += 1
-        related = ""
-        if expiry.device_id:
-            device = db.get(Device, expiry.device_id)
-            related = device.name if device else (expiry.related_label or "")
-        else:
-            related = expiry.related_label or ""
-        expiry_views.append(
-            {
-                "expiry": expiry,
-                "days": days,
-                "status": status,
-                "related": related,
-            }
-        )
 
     counts = {
         "abnormal_items": abnormal_items,
         "filled_items": filled_items,
         "abnormal_devices": abnormal_devices,
-        "open_followups": open_followups,
-        "expired": expired,
-        "within_30": within_30,
-        "within_90": within_90,
+        "open_followups": 0,
+        "expired": 0,
+        "within_30": 0,
+        "within_90": 0,
     }
     light = rag_light(
         abnormal_items,
@@ -620,7 +595,6 @@ def save_check_cover(db: Session, check: Check, form) -> None:
     engineer = clean(form.get("engineer"), 100)
     if not engineer:
         raise FormError("Enter the engineer.")
-    method = require_choice(form.get("connection_method"), CONNECTION_METHODS, "connection")
     ym = year_month(check_date)
     clash = db.scalar(
         select(Check.id).where(
@@ -634,7 +608,6 @@ def save_check_cover(db: Session, check: Check, form) -> None:
     check.check_date = check_date
     check.year_month = ym
     check.engineer = engineer
-    check.connection_method = method
     check.duration_hours = parse_hours(form.get("duration_hours"))
     check.notes = clean(form.get("notes"))
 

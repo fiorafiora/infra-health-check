@@ -20,7 +20,7 @@
       <button class="btn" type="submit">Save</button>
     </form>
     <form method="post" action="/clients/{{ client.id }}/delete">
-      <button class="btn danger" type="submit" data-confirm="Delete {{ client.name }} / {{ client.site }}? Checks, devices, issues, expiries, and screenshots will all be removed.">Delete client</button>
+      <button class="btn danger" type="submit" data-confirm="Delete {{ client.name }} / {{ client.site }}? Devices, checks, and screenshots will all be removed.">Delete client</button>
     </form>
   </details>
 </section>
@@ -29,7 +29,6 @@
   <a href="#months">Months</a>
   <a href="#summary">Cover</a>
   <a href="#devices">Devices</a>
-  <a href="#expiries">Expiries</a>
 </nav>
 
 <section id="months" class="card">
@@ -51,11 +50,6 @@
     <form class="grid-form" method="post" action="/clients/{{ client.id }}/checks">
       <label>Check date<input type="date" name="check_date" required value="{{ today.isoformat() }}"></label>
       <label>Engineer<input name="engineer" required maxlength="100" value="{{ current.engineer if current else '' }}" placeholder="For example, K L"></label>
-      <label>Connection
-        <select name="connection_method" required>
-          {{ options(CONNECTION_METHODS, current.connection_method if current else "VPN") }}
-        </select>
-      </label>
       <label>Duration (hours)<input name="duration_hours" inputmode="decimal" placeholder="1.5" value=""></label>
       <label class="span-2">Notes<textarea name="notes" rows="2" placeholder="Optional"></textarea></label>
       <div class="span-2">
@@ -69,7 +63,7 @@
 {% if not current %}
 <section class="card empty-state">
   <h2>No month yet</h2>
-  <p>Create the cover first (check date, engineer, connection), then fill device status and the checklist. Until something is filled in, the light stays Not started.</p>
+  <p>Create the cover first (check date and engineer), then fill each device’s checks.</p>
 </section>
 {% else %}
 <section id="summary" class="card hero-card" data-light="{{ view.light }}">
@@ -77,7 +71,7 @@
     <div>
       <p class="eyebrow">Overall</p>
       <p class="hero-light">{{ view.light }}</p>
-      <p class="hint">Red beats amber. Days left use this check date ({{ current.check_date }}), not today.</p>
+      <p class="hint">Red if any check is Abnormal. Green when checks are filled and none are abnormal.</p>
     </div>
     <div class="exports">
       <a class="btn" href="/checks/{{ current.id }}/export.pdf">Export PDF</a>
@@ -88,26 +82,19 @@
     <li><span>Abnormal checks</span><strong>{{ view.counts.abnormal_items }}</strong></li>
     <li><span>Checks filled</span><strong>{{ view.counts.filled_items }}</strong></li>
     <li><span>Abnormal devices</span><strong>{{ view.counts.abnormal_devices }}</strong></li>
-    <li><span>Expired</span><strong>{{ view.counts.expired }}</strong></li>
-    <li><span>Due in 30 days</span><strong>{{ view.counts.within_30 }}</strong></li>
-    <li><span>Due in 90 days</span><strong>{{ view.counts.within_90 }}</strong></li>
   </ul>
   <p class="snapshot">This check records what you saw at that moment. Nothing alerts you between monthly visits, and it is not 24-hour monitoring.</p>
   <details class="rules">
     <summary>How the light is decided</summary>
     <ul>
-      <li>Red: a device check is Abnormal, or something is Expired.</li>
-      <li>Amber: nothing is red, but something is due within 30 or 90 days.</li>
-      <li>Green: at least one check is filled in, and nothing above applies.</li>
-      <li>Not started: no check result yet, and no expiry warning.</li>
+      <li>Red: a device check is Abnormal.</li>
+      <li>Green: at least one check is filled in, and none are Abnormal.</li>
+      <li>Not started: no check result yet.</li>
     </ul>
   </details>
   <form class="grid-form cover-form" method="post" action="/checks/{{ current.id }}">
     <label>Check date<input type="date" name="check_date" required value="{{ current.check_date.isoformat() }}"></label>
     <label>Engineer<input name="engineer" required maxlength="100" value="{{ current.engineer }}"></label>
-    <label>Connection
-      <select name="connection_method" required>{{ options(CONNECTION_METHODS, current.connection_method) }}</select>
-    </label>
     <label>Duration (hours)<input name="duration_hours" inputmode="decimal" value="{{ current.duration_hours|hours }}"></label>
     <label class="span-2">Notes<textarea name="notes" rows="2">{{ current.notes or '' }}</textarea></label>
     <div class="row-actions span-2">
@@ -124,6 +111,52 @@
     <h2>Devices</h2>
     <p class="hint">Set each device’s checks once. A new month loads them here. Mark Normal or Abnormal, write the issue, and upload a picture on that row.</p>
   </div>
+
+  <details class="start-month" open>
+    <summary>Add or edit devices</summary>
+    <div class="split">
+      <form class="subcard" method="post" action="/clients/{{ client.id }}/devices">
+        <h3>Add a device</h3>
+        <input type="hidden" name="check_id" value="{{ current.id }}">
+        <label>Type<select name="device_type" required>{{ options(DEVICE_TYPES, "Server") }}</select></label>
+        <label>Name<input name="name" required maxlength="200" placeholder="NVR-01"></label>
+        <label>IP address<input name="ip_address" maxlength="100" placeholder="192.0.2.30"></label>
+        <label>Model<input name="model" maxlength="200"></label>
+        <label>Serial<input name="serial_no" maxlength="200"></label>
+        <label>Firmware<input name="firmware" maxlength="100"></label>
+        <label>Warranty / support expiry<input type="date" name="warranty_expiry"></label>
+        <label>On list from<input type="date" name="added_on" value="{{ current.check_date.isoformat() }}"></label>
+        <button class="btn" type="submit">Add device</button>
+      </form>
+      <div class="subcard">
+        <h3>Edit a device</h3>
+        {% for device in devices %}
+        <details>
+          <summary>{{ device.device_type }} · {{ device.name }}</summary>
+          <form method="post" action="/devices/{{ device.id }}">
+            <input type="hidden" name="check_id" value="{{ current.id }}">
+            <label>Type<select name="device_type">{{ options(DEVICE_TYPES, device.device_type) }}</select></label>
+            <label>Name<input name="name" required value="{{ device.name }}"></label>
+            <label>Model<input name="model" value="{{ device.model or '' }}"></label>
+            <label>Serial<input name="serial_no" value="{{ device.serial_no or '' }}"></label>
+            <label>IP address<input name="ip_address" value="{{ device.ip_address or '' }}"></label>
+            <label>Firmware<input name="firmware" value="{{ device.firmware or '' }}"></label>
+            <label>Warranty / support expiry<input type="date" name="warranty_expiry" value="{{ device.warranty_expiry.isoformat() if device.warranty_expiry else '' }}"></label>
+            <label>Sort order<input name="sort_order" inputmode="numeric" value="{{ device.sort_order }}"></label>
+            <button class="btn small" type="submit">Save</button>
+          </form>
+          <form method="post" action="/devices/{{ device.id }}/delete">
+            <input type="hidden" name="check_id" value="{{ current.id }}">
+            <button class="link danger" type="submit" data-confirm="Delete {{ device.name }}?">Delete</button>
+          </form>
+        </details>
+        {% else %}
+        <p class="empty">No devices yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </details>
+
   {% if view.devices %}
   <form id="device-checks-form" method="post" action="/checks/{{ current.id }}/device-checks"></form>
   {% for row in view.devices %}
@@ -192,150 +225,10 @@
     <button class="btn" type="submit" form="device-checks-form">Save checks</button>
   </div>
   {% else %}
-  <p class="empty">No devices on this month. Add one below.</p>
+  <p class="empty">No devices on this month. Add one above.</p>
   {% endif %}
 
-  <details class="start-month">
-    <summary>Add or edit devices</summary>
-    <div class="split">
-      <form class="subcard" method="post" action="/clients/{{ client.id }}/devices">
-        <h3>Add a device</h3>
-        <input type="hidden" name="check_id" value="{{ current.id }}">
-        <label>Type<select name="device_type" required>{{ options(DEVICE_TYPES, "Server") }}</select></label>
-        <label>Name<input name="name" required maxlength="200" placeholder="NVR-01"></label>
-        <label>IP address<input name="ip_address" maxlength="100" placeholder="192.0.2.30"></label>
-        <label>Model<input name="model" maxlength="200"></label>
-        <label>Serial<input name="serial_no" maxlength="200"></label>
-        <label>Firmware<input name="firmware" maxlength="100"></label>
-        <label>Warranty / support expiry<input type="date" name="warranty_expiry"></label>
-        <label>On list from<input type="date" name="added_on" value="{{ current.check_date.isoformat() }}"></label>
-        <button class="btn" type="submit">Add device</button>
-      </form>
-      <div class="subcard">
-        <h3>Edit a device</h3>
-        {% for device in devices %}
-        <details>
-          <summary>{{ device.device_type }} · {{ device.name }}</summary>
-          <form method="post" action="/devices/{{ device.id }}">
-            <input type="hidden" name="check_id" value="{{ current.id }}">
-            <label>Type<select name="device_type">{{ options(DEVICE_TYPES, device.device_type) }}</select></label>
-            <label>Name<input name="name" required value="{{ device.name }}"></label>
-            <label>Model<input name="model" value="{{ device.model or '' }}"></label>
-            <label>Serial<input name="serial_no" value="{{ device.serial_no or '' }}"></label>
-            <label>IP address<input name="ip_address" value="{{ device.ip_address or '' }}"></label>
-            <label>Firmware<input name="firmware" value="{{ device.firmware or '' }}"></label>
-            <label>Warranty / support expiry<input type="date" name="warranty_expiry" value="{{ device.warranty_expiry.isoformat() if device.warranty_expiry else '' }}"></label>
-            <label>Sort order<input name="sort_order" inputmode="numeric" value="{{ device.sort_order }}"></label>
-            <button class="btn small" type="submit">Save</button>
-          </form>
-          <form method="post" action="/devices/{{ device.id }}/delete">
-            <input type="hidden" name="check_id" value="{{ current.id }}">
-            <button class="link danger" type="submit" data-confirm="Delete {{ device.name }}?">Delete</button>
-          </form>
-        </details>
-        {% else %}
-        <p class="empty">No devices yet.</p>
-        {% endfor %}
-      </div>
-    </div>
-  </details>
 </section>
 
-<section id="expiries" class="card">
-  <div class="card-head">
-    <h2>Expiries</h2>
-    <p class="hint">Enter expiry dates yourself. They are not copied from the device list unless you use the button below. Days remaining are counted from <strong>{{ current.check_date }}</strong>, not from today.</p>
-  </div>
-  {% if view.expiries %}
-  <div class="sheet">
-    <table class="grid expiries">
-      <thead>
-        <tr>
-          <th>Type</th>
-          <th>Name</th>
-          <th>Related device</th>
-          <th>Expiry date</th>
-          <th>Days left</th>
-          <th>Status</th>
-          <th>Notes</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in view.expiries %}
-        {% set expiry = row.expiry %}
-        <tr>
-          <td><select form="ex-{{ expiry.id }}" name="kind">{{ options(EXPIRY_KINDS, expiry.kind) }}</select></td>
-          <td>
-            <input form="ex-{{ expiry.id }}" name="name" required value="{{ expiry.name }}">
-            {% if expiry.copied_from_device %}<span class="tag">Copied from warranty</span>{% endif %}
-          </td>
-          <td>
-            <select form="ex-{{ expiry.id }}" name="device_id">
-              <option value="">None</option>
-              {% for device in devices %}
-              <option value="{{ device.id }}"{% if expiry.device_id == device.id %} selected{% endif %}>{{ device.name }}</option>
-              {% endfor %}
-            </select>
-            <input form="ex-{{ expiry.id }}" name="related_label" value="{{ expiry.related_label or '' }}" placeholder="Display name">
-          </td>
-          <td><input form="ex-{{ expiry.id }}" type="date" name="expiry_date" required value="{{ expiry.expiry_date.isoformat() }}"></td>
-          <td class="num">{{ row.days if row.days is not none else "—" }}</td>
-          <td><span class="status" data-status="{{ row.status }}">{{ row.status }}</span></td>
-          <td><textarea form="ex-{{ expiry.id }}" name="notes" rows="2">{{ expiry.notes or '' }}</textarea></td>
-          <td class="nowrap">
-            <button class="btn small" type="submit" form="ex-{{ expiry.id }}">Save</button>
-            <button class="link danger" type="submit" form="ex-del-{{ expiry.id }}" data-confirm="Delete “{{ expiry.name }}”?">Delete</button>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% for row in view.expiries %}
-  <form id="ex-{{ row.expiry.id }}" method="post" action="/expiries/{{ row.expiry.id }}">
-    <input type="hidden" name="check_id" value="{{ current.id }}">
-  </form>
-  <form id="ex-del-{{ row.expiry.id }}" method="post" action="/expiries/{{ row.expiry.id }}/delete">
-    <input type="hidden" name="check_id" value="{{ current.id }}">
-  </form>
-  {% endfor %}
-  {% else %}
-  <p class="empty">No expiries yet.</p>
-  {% endif %}
-
-  <div class="split">
-    <form class="subcard" method="post" action="/clients/{{ client.id }}/expiries">
-      <h3>Add an expiry</h3>
-      <input type="hidden" name="check_id" value="{{ current.id }}">
-      <label>Type<select name="kind">{{ options(EXPIRY_KINDS, "Licence") }}</select></label>
-      <label>Name<input name="name" required maxlength="300" placeholder="For example, firewall licence"></label>
-      <label>Related device
-        <select name="device_id">
-          <option value="">None</option>
-          {% for device in devices %}<option value="{{ device.id }}">{{ device.name }}</option>{% endfor %}
-        </select>
-      </label>
-      <label>Related label<input name="related_label" maxlength="300"></label>
-      <label>Expiry date<input type="date" name="expiry_date" required></label>
-      <label>Notes<textarea name="notes" rows="2"></textarea></label>
-      <button class="btn" type="submit">Add</button>
-    </form>
-    <form class="subcard" method="post" action="/clients/{{ client.id }}/expiries/copy-warranty">
-      <h3>Copy a device warranty</h3>
-      <input type="hidden" name="check_id" value="{{ current.id }}">
-      <p class="hint">Copies only the device you pick, and only if it has a warranty or support date. The same date is not added twice.</p>
-      <label>Device
-        <select name="device_id" required>
-          <option value="">Choose</option>
-          {% for device in devices %}
-          <option value="{{ device.id }}">{{ device.name }}{% if device.warranty_expiry %} · {{ device.warranty_expiry }}{% else %} · no date{% endif %}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <button class="btn ghost" type="submit">Copy as warranty</button>
-    </form>
-  </div>
-</section>
 {% endif %}
 {% endblock %}

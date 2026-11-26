@@ -48,7 +48,7 @@ def test_seeded_home_shows_three_demo_lights(client):
     assert font.status_code == 200
     assert font.headers["content-type"].startswith("font/") or len(font.content) > 1000
     assert _row_light(body, "Client A") == "Red"
-    assert _row_light(body, "Client B") == "Amber"
+    assert _row_light(body, "Client B") == "Green"
     assert _row_light(body, "Client C") == "Not started"
     assert "Example site" in body
 
@@ -64,7 +64,6 @@ def test_client_a_november_compares_with_last_month(client):
     assert "show interfaces status" in page.text
     assert "192.0.2.20" in page.text
     assert "AP-01" in page.text
-    assert "not today" in page.text
     assert 'data-month="2026-10"' in page.text
     assert 'data-month="2026-11"' in page.text
     october = re.search(r'data-month="2026-10" data-light="([^"]+)" href="/clients/\d+\?check=(\d+)"', page.text)
@@ -79,7 +78,7 @@ def test_client_b_turns_from_green_to_yellow(client):
     home = client.get("/")
     client_id = _client_id(home.text, "Client B")
     page = client.get(f"/clients/{client_id}")
-    assert 'data-light="Amber"' in page.text
+    assert 'data-light="Green"' in page.text
     october = re.search(r'data-month="2026-10" data-light="([^"]+)" href="/clients/\d+\?check=(\d+)"', page.text)
     assert october.group(1) == "Green"
     assert expiry_state(date(2027, 1, 15), date(2026, 10, 1))[1] == "Normal"
@@ -95,10 +94,12 @@ def test_excel_and_pdf_export(client):
     assert workbook_response.status_code == 200
     assert workbook_response.content[:2] == b"PK"
     workbook = load_workbook(BytesIO(workbook_response.content))
-    assert workbook.sheetnames == ["Cover", "Devices", "Issues", "Expiries"]
+    assert workbook.sheetnames == ["Cover", "Devices", "Issues"]
+    assert "AnyDesk" not in page.text
+    assert "Expiries" not in page.text
     cover = workbook["Cover"]
     assert cover["B5"].value == "Client A"
-    assert cover["B11"].value == "Red"
+    assert cover["B10"].value == "Red"
     devices = workbook["Devices"]
     assert devices["A4"].value == "Type"
     blobs = [str(devices.cell(row, 9).value or "") for row in range(5, 12)]
@@ -220,18 +221,6 @@ def test_new_client_month_flow_upload_and_copy_warranty(client):
         follow_redirects=True,
     )
     assert "FW-T" in added.text
-    device_id = re.search(r'name="device_id"[^>]*>\s*<option value="">Choose</option>\s*<option value="(\d+)">FW-T', added.text)
-    if not device_id:
-        device_id = re.search(r'value="(\d+)">FW-T', added.text)
-    assert device_id
-    copied = client.post(
-        f"/clients/{client_id}/expiries/copy-warranty",
-        data={"check_id": nov_check, "device_id": device_id.group(1)},
-        follow_redirects=True,
-    )
-    assert "Warranty copied" in copied.text
-    assert "FW-T warranty" in copied.text
-    assert "2027-05-01" in copied.text
 
 
 def test_issue_keeps_its_code(client):

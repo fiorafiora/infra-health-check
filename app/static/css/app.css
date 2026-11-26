@@ -159,7 +159,7 @@ section[id] { scroll-margin-top: 42px; }
 .stats {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0;
   padding: 0;
   margin: 10px 0;
@@ -334,7 +334,7 @@ details form { margin-top: 8px; }
 }
 
 @media (max-width: 1100px) {
-  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .layout-home, .split, .page-head { grid-template-columns: 1fr; display: grid; }
   .grid-form { grid-template-columns: 1fr; }
   .span-2 { grid-column: auto; }
