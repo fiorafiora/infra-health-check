@@ -2,18 +2,13 @@
 {% block title %}Clients · Monthly remote health check{% endblock %}
 {% block content %}
 <section class="page-head">
-  <div>
-    <p class="eyebrow">Internal check records</p>
-    <h1>Clients and sites</h1>
-    <p class="lede">One site per client, one check per month. Record devices, a checklist, open issues, and dates that are about to expire.</p>
-  </div>
+  <h1>Clients</h1>
 </section>
 
 {% if has_demo %}
 <aside class="banner demo">
-  <strong>Example data is loaded.</strong>
-  Client A, Client B, Client C, 192.0.2.x, and the ISS numbers are not real customers. Delete them before real use.
-  Client A’s latest month should be red (AP-01 offline, ISS-001). Client B is green in October and amber in November. Client C is not started.
+  Example data only (Client A–C, 192.0.2.x). Delete before real use.
+  Client A latest month is red, Client B is amber, Client C is not started.
 </aside>
 {% endif %}
 

@@ -7,7 +7,7 @@
   <div>
     <p class="eyebrow"><a href="/">Clients</a> / {{ client.site }}</p>
     <h1>{{ client.name }} <span class="site-name">{{ client.site }}</span></h1>
-    {% if client.is_demo %}<p class="tag-line"><span class="tag">Example</span> Example record, not a real client.</p>{% endif %}
+    {% if client.is_demo %}<p class="tag-line">Example record, not a real client.</p>{% endif %}
     {% if client.notes %}<p class="lede">{{ client.notes }}</p>{% endif %}
   </div>
   <details class="card tight">
