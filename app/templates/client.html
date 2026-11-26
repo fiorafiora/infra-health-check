@@ -1,0 +1,517 @@
+{% extends "base.html" %}
+{% from "_macros.html" import options, thumbs, uploader, delete_shot %}
+{% set next = "/clients/" ~ client.id ~ ("?check=" ~ current.id if current else "") %}
+{% block title %}{{ client.name }} · {{ client.site }}{% endblock %}
+{% block content %}
+<section class="page-head client-head">
+  <div>
+    <p class="eyebrow"><a href="/">客戶</a> / {{ client.site }}</p>
+    <h1>{{ client.name }} <span class="site-name">{{ client.site }}</span></h1>
+    {% if client.is_demo %}<p class="tag-line"><span class="tag">範例</span> 這筆是示範資料，不是真實客戶。</p>{% endif %}
+    {% if client.notes %}<p class="lede">{{ client.notes }}</p>{% endif %}
+  </div>
+  <details class="card tight">
+    <summary>編輯客戶</summary>
+    <form method="post" action="/clients/{{ client.id }}">
+      <input type="hidden" name="check_id" value="{{ current.id if current else '' }}">
+      <label>客戶名稱<input name="name" required maxlength="200" value="{{ client.name }}"></label>
+      <label>站點<input name="site" required maxlength="200" value="{{ client.site }}"></label>
+      <label>備註<textarea name="notes" rows="3">{{ client.notes or '' }}</textarea></label>
+      <button class="btn" type="submit">儲存</button>
+    </form>
+    <form method="post" action="/clients/{{ client.id }}/delete">
+      <button class="btn danger" type="submit" data-confirm="刪除「{{ client.name }}／{{ client.site }}」？檢查、設備、問題、到期項目與截圖都會一併刪除。">刪除客戶</button>
+    </form>
+  </details>
+</section>
+
+<nav class="subnav" aria-label="本頁章節">
+  <a href="#months">月份</a>
+  <a href="#summary">封面</a>
+  <a href="#devices">設備清單</a>
+  <a href="#checklist">月度檢查表</a>
+  <a href="#issues">異常與跟進</a>
+  <a href="#expiries">到期預警</a>
+</nav>
+
+<section id="months" class="card">
+  <div class="card-head">
+    <h2>月份</h2>
+    {% if pills %}
+    <div class="pills">
+      {% for pill in pills %}
+      <a class="pill{% if current and pill.check.id == current.id %} active{% endif %}" data-month="{{ pill.check.year_month }}" data-light="{{ pill.light }}" href="/clients/{{ client.id }}?check={{ pill.check.id }}">
+        <span>{{ pill.check.year_month }}</span>
+        <span class="light light-{{ pill.light }}">{{ pill.light }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  <details class="start-month"{% if not current %} open{% endif %}>
+    <summary>{% if current %}開始新一個月{% else %}開始第一次檢查{% endif %}</summary>
+    <form class="grid-form" method="post" action="/clients/{{ client.id }}/checks">
+      <label>檢查日期<input type="date" name="check_date" required value="{{ today.isoformat() }}"></label>
+      <label>工程師<input name="engineer" required maxlength="100" value="{{ current.engineer if current else '' }}" placeholder="例如 K L"></label>
+      <label>連線方式
+        <select name="connection_method" required>
+          {{ options(CONNECTION_METHODS, current.connection_method if current else "VPN") }}
+        </select>
+      </label>
+      <label>檢查時長（小時）<input name="duration_hours" inputmode="decimal" placeholder="1.5" value=""></label>
+      <label class="span-2">整體備註<textarea name="notes" rows="2" placeholder="選填"></textarea></label>
+      <div class="span-2">
+        <button class="btn" type="submit">建立這個月份</button>
+        <p class="hint">同一客戶同一個月只能有一份。新月份會帶入固定檢查項、此站的其他項目、當時已列入的設備，以及首次發現日不晚於檢查日的問題。上月結果會從較早一個月抄過來。問題編號維持不變。</p>
+      </div>
+    </form>
+  </details>
+</section>
+
+{% if not current %}
+<section class="card empty-state">
+  <h2>尚未有月份</h2>
+  <p>先建立封面（檢查日期、工程師、連線方式），再填設備本月狀態與檢查表。沒有填寫前，燈號是「未完成」。</p>
+</section>
+{% else %}
+<section id="summary" class="card hero-card light-{{ view.light }}" data-light="{{ view.light }}">
+  <div class="hero-top">
+    <div>
+      <p class="eyebrow">整體燈號</p>
+      <p class="hero-light">{{ view.light }}</p>
+      <p class="hint">規則與 Excel 範本相同。紅優先於黃。剩餘日數相對這次檢查日期 {{ current.check_date }}，不是今天。</p>
+    </div>
+    <div class="exports">
+      <a class="btn" href="/checks/{{ current.id }}/export.pdf">匯出 PDF</a>
+      <a class="btn ghost" href="/checks/{{ current.id }}/export.xlsx">匯出 Excel</a>
+    </div>
+  </div>
+  <ul class="stats">
+    <li><span>月度檢查表異常項數</span><strong>{{ view.counts.abnormal_items }}</strong></li>
+    <li><span>月度檢查表已填項數</span><strong>{{ view.counts.filled_items }}</strong></li>
+    <li><span>設備清單異常數</span><strong>{{ view.counts.abnormal_devices }}</strong></li>
+    <li><span>未關閉跟進數</span><strong>{{ view.counts.open_followups }}</strong></li>
+    <li><span>已過期數</span><strong>{{ view.counts.expired }}</strong></li>
+    <li><span>30天內到期數</span><strong>{{ view.counts.within_30 }}</strong></li>
+    <li><span>90天內到期數</span><strong>{{ view.counts.within_90 }}</strong></li>
+  </ul>
+  <p class="snapshot">此檢查只反映檢查當下的狀態，是時點快照；兩次月檢之間沒有即時告警，不能當 24 小時監控。</p>
+  <details class="rules">
+    <summary>燈號與填寫說明</summary>
+    <ul>
+      <li>紅：本月檢查或設備有「異常」，或有已過期項目。</li>
+      <li>黃：無上述紅燈，但有未關閉跟進（開放／跟進中），或 30／90 天內到期。</li>
+      <li>綠：已填寫檢查結果，且無上述紅／黃情況。</li>
+      <li>未完成：檢查表尚未填寫，且無異常、未關閉跟進或到期預警（已過期、30 天、90 天）。只標成「正常」的到期項目不會讓燈號變成綠。</li>
+      <li>重複出現的問題不要新開一筆，沿用原問題編號與首次發現日期。</li>
+      <li>截圖只建議在異常時保留。接受 jpg、png、webp，單檔 5 MB，每項最多 8 張。</li>
+    </ul>
+  </details>
+  <form class="grid-form cover-form" method="post" action="/checks/{{ current.id }}">
+    <label>檢查日期<input type="date" name="check_date" required value="{{ current.check_date.isoformat() }}"></label>
+    <label>工程師<input name="engineer" required maxlength="100" value="{{ current.engineer }}"></label>
+    <label>連線方式
+      <select name="connection_method" required>{{ options(CONNECTION_METHODS, current.connection_method) }}</select>
+    </label>
+    <label>檢查時長（小時）<input name="duration_hours" inputmode="decimal" value="{{ current.duration_hours|hours }}"></label>
+    <label class="span-2">整體備註<textarea name="notes" rows="2">{{ current.notes or '' }}</textarea></label>
+    <div class="row-actions span-2">
+      <button class="btn" type="submit">儲存封面</button>
+    </div>
+  </form>
+  <form method="post" action="/checks/{{ current.id }}/delete">
+    <button class="link danger" type="submit" data-confirm="刪除 {{ current.year_month }} 這份檢查？設備主檔與問題編號會保留，這個月的狀態與檢查表會刪除。">刪除此月份</button>
+  </form>
+</section>
+
+<section id="devices" class="card">
+  <div class="card-head">
+    <h2>設備清單</h2>
+    <p class="hint">本月狀態留空代表尚未填，不算異常。上月狀態只供對照，不寫入匯出檔的獨立欄。</p>
+  </div>
+  {% if view.devices %}
+  <form id="device-month-form" method="post" action="/checks/{{ current.id }}/devices"></form>
+  <div class="sheet">
+    <table class="grid devices">
+      <colgroup>
+        <col class="c-type">
+        <col class="c-name">
+        <col class="c-ip">
+        <col class="c-date">
+        <col class="c-date">
+        <col class="c-state">
+        <col class="c-state">
+        <col class="c-note">
+        <col class="c-note">
+        <col class="c-date">
+        <col class="c-shot">
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="sticky-1">設備類型</th>
+          <th class="sticky-2">名稱/主機名稱</th>
+          <th>IP 位址</th>
+          <th>保固/支援到期日</th>
+          <th>上次檢查日期</th>
+          <th>上月狀態</th>
+          <th>本月狀態</th>
+          <th>異常摘要</th>
+          <th>跟進事項</th>
+          <th>首次發現日期</th>
+          <th>截圖</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in view.devices %}
+        {% set device = row.device %}
+        {% set month = row.month %}
+        <tr>
+          <td class="sticky-1">{{ device.device_type }}</td>
+          <td class="sticky-2">
+            <strong>{{ device.name }}</strong>
+            <div class="sub">型號 {{ device.model or "未填" }} · 序號 {{ device.serial_no or "未填" }} · 韌體 {{ device.firmware or "未填" }}</div>
+          </td>
+          <td>{{ device.ip_address or "—" }}</td>
+          <td>{{ device.warranty_expiry|d }}</td>
+          <td><input form="device-month-form" type="date" name="last_{{ month.id }}" value="{{ month.last_check_date.isoformat() if month.last_check_date else '' }}"></td>
+          <td>{% if row.prev_status %}<span class="status status-{{ row.prev_status }}">{{ row.prev_status }}</span>{% else %}—{% endif %}</td>
+          <td>
+            <select form="device-month-form" name="status_{{ month.id }}">
+              {{ options(DEVICE_RESULTS, month.status, true) }}
+            </select>
+          </td>
+          <td><textarea form="device-month-form" name="summary_{{ month.id }}" rows="2">{{ month.exception_summary or '' }}</textarea></td>
+          <td><textarea form="device-month-form" name="follow_{{ month.id }}" rows="2">{{ month.follow_up or '' }}</textarea></td>
+          <td><input form="device-month-form" type="date" name="found_{{ month.id }}" value="{{ month.first_found_date.isoformat() if month.first_found_date else '' }}"></td>
+          <td class="shot-cell">
+            {{ thumbs(row.attachments) }}
+            {% for file in row.attachments %}{{ delete_shot(file, next ~ "#devices") }}{% endfor %}
+            {{ uploader("device_month", month.id, next ~ "#devices") }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="savebar">
+    <button class="btn" type="submit" form="device-month-form">儲存設備本月狀態</button>
+  </div>
+  {% else %}
+  <p class="empty">這個月份還沒有設備。在下面新增；開始列入日期早於或等於本月，才會出現在這張表。</p>
+  {% endif %}
+
+  <div class="split">
+    <form class="subcard" method="post" action="/clients/{{ client.id }}/devices">
+      <h3>新增設備</h3>
+      <input type="hidden" name="check_id" value="{{ current.id }}">
+      <label>設備類型<select name="device_type" required>{{ options(DEVICE_TYPES, "伺服器") }}</select></label>
+      <label>名稱/主機名稱<input name="name" required maxlength="200" placeholder="例如 SRV-01"></label>
+      <label>型號<input name="model" maxlength="200"></label>
+      <label>序號<input name="serial_no" maxlength="200"></label>
+      <label>IP 位址<input name="ip_address" maxlength="100" placeholder="192.0.2.10"></label>
+      <label>韌體版本<input name="firmware" maxlength="100"></label>
+      <label>保固/支援到期日<input type="date" name="warranty_expiry"></label>
+      <label>開始列入日期<input type="date" name="added_on" value="{{ current.check_date.isoformat() }}"></label>
+      <p class="hint">此日期之後（含當日）的檢查才會列出這台設備。保固不會自動進到期預警。</p>
+      <button class="btn" type="submit">新增設備</button>
+    </form>
+    <div class="subcard">
+      <h3>設備主檔</h3>
+      {% if devices %}
+      {% for device in devices %}
+      <details>
+        <summary>{{ device.device_type }} · {{ device.name }}{% if device.ip_address %} · {{ device.ip_address }}{% endif %}</summary>
+        <form method="post" action="/devices/{{ device.id }}">
+          <input type="hidden" name="check_id" value="{{ current.id }}">
+          <label>設備類型<select name="device_type">{{ options(DEVICE_TYPES, device.device_type) }}</select></label>
+          <label>名稱<input name="name" required value="{{ device.name }}"></label>
+          <label>型號<input name="model" value="{{ device.model or '' }}"></label>
+          <label>序號<input name="serial_no" value="{{ device.serial_no or '' }}"></label>
+          <label>IP 位址<input name="ip_address" value="{{ device.ip_address or '' }}"></label>
+          <label>韌體版本<input name="firmware" value="{{ device.firmware or '' }}"></label>
+          <label>保固/支援到期日<input type="date" name="warranty_expiry" value="{{ device.warranty_expiry.isoformat() if device.warranty_expiry else '' }}"></label>
+          <label>排序<input name="sort_order" inputmode="numeric" value="{{ device.sort_order }}"></label>
+          <button class="btn small" type="submit">儲存主檔</button>
+        </form>
+        <form method="post" action="/devices/{{ device.id }}/delete">
+          <input type="hidden" name="check_id" value="{{ current.id }}">
+          <button class="link danger" type="submit" data-confirm="刪除設備 {{ device.name }}？各月份的設備狀態會一併刪除。">刪除設備</button>
+        </form>
+      </details>
+      {% endfor %}
+      {% else %}
+      <p class="empty">尚未建立設備。</p>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<section id="checklist" class="card">
+  <div class="card-head">
+    <h2>月度檢查表</h2>
+    <p class="hint">請依項次順序檢查，固定項目的階段與名稱不要改。各站的其他項目加在後面。</p>
+  </div>
+  <form id="checklist-form" method="post" action="/checks/{{ current.id }}/items"></form>
+  <div class="sheet">
+    <table class="grid checks">
+      <thead>
+        <tr>
+          <th>項次</th>
+          <th>檢查項目</th>
+          <th>本月結果</th>
+          <th>說明/備註</th>
+          <th>上月結果</th>
+          <th>與上月比較</th>
+          <th>截圖</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set ns = namespace(stage="") %}
+        {% for row in view["items"] %}
+        {% set item = row.item %}
+        {% if item.stage != ns.stage %}
+        {% set ns.stage = item.stage %}
+        <tr class="stage-row"><td colspan="7">{{ stage_heading(item.stage) }}</td></tr>
+        {% endif %}
+        <tr>
+          <td class="num">{{ item.seq }}</td>
+          <td>
+            {% if item.is_custom %}
+            <input form="checklist-form" name="name_{{ item.id }}" value="{{ item.name }}" maxlength="300" aria-label="其他項目名稱">
+            {% else %}
+            {{ item.name }}
+            {% endif %}
+          </td>
+          <td>
+            <select form="checklist-form" name="result_{{ item.id }}">
+              {{ options(CHECK_RESULTS, item.result, true) }}
+            </select>
+          </td>
+          <td><textarea form="checklist-form" name="notes_{{ item.id }}" rows="2">{{ item.notes or '' }}</textarea></td>
+          <td>{{ item.prev_result or "—" }}</td>
+          <td>
+            {% if row.compare %}
+            <span class="cmp" data-compare="{{ row.compare }}">{{ row.compare }}</span>
+            {% else %}
+            <span class="muted">—</span>
+            {% endif %}
+          </td>
+          <td class="shot-cell">
+            {{ thumbs(row.attachments) }}
+            {% for file in row.attachments %}{{ delete_shot(file, next ~ "#checklist") }}{% endfor %}
+            {{ uploader("check_item", item.id, next ~ "#checklist") }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="savebar">
+    <button class="btn" type="submit" form="checklist-form">儲存檢查表</button>
+  </div>
+  <form class="inline-add" method="post" action="/clients/{{ client.id }}/custom-items">
+    <input type="hidden" name="check_id" value="{{ current.id }}">
+    <label>新增此站其他項目<input name="name" required maxlength="300" placeholder="例如 UPS 電池狀態"></label>
+    <button class="btn ghost" type="submit">加入</button>
+  </form>
+  {% for row in view["items"] if row.item.is_custom and row.item.custom_item_id %}
+  <form class="inline-delete" method="post" action="/custom-items/{{ row.item.custom_item_id }}/delete">
+    <input type="hidden" name="check_id" value="{{ current.id }}">
+    <button class="link danger" type="submit" data-confirm="刪除其他項目「{{ row.item.name }}」？各月份的這一列都會移除。">刪除「{{ row.item.name }}」</button>
+  </form>
+  {% endfor %}
+</section>
+
+<section id="issues" class="card">
+  <div class="card-head">
+    <h2>異常與跟進</h2>
+    <p class="hint">未關閉問題請沿用原列與原編號。開始新月份時會把已存在的問題帶入，本月觀察留空給你重寫。</p>
+  </div>
+  {% if view.missing_issues %}
+  <form class="banner demo" method="post" action="/checks/{{ current.id }}/include-issues">
+    <p>有 {{ view.missing_issues }} 個已存在的問題尚未列入本月，整體燈號暫時沒有把它們算進去。</p>
+    <button class="btn small" type="submit">全部列入本月</button>
+  </form>
+  {% endif %}
+  {% if not view.is_latest %}
+  <p class="hint">你正在看較早的月份。這裡的「本月狀態」只影響該月燈號與報表。最新一個月的狀態，才是下次開新月份時會沿用的狀態。</p>
+  {% endif %}
+  <div class="filters" role="tablist">
+    <button type="button" class="chip active" data-issue-filter="all">全部</button>
+    <button type="button" class="chip" data-issue-filter="open">未關閉</button>
+    <button type="button" class="chip" data-issue-filter="closed">已關閉</button>
+  </div>
+  {% if view.issues %}
+  <div class="issue-list">
+    {% for row in view.issues %}
+    {% set issue = row.issue %}
+    {% set month = row.month %}
+    {% set shown = month.status if month else issue.status %}
+    <article class="issue-card" data-issue-status="{{ shown }}">
+      <div class="issue-top">
+        <strong>{{ issue.code }}</strong>
+        {% if not month %}<span class="tag">未列入本月</span>{% endif %}
+        <span class="status status-{{ shown }}">{{ shown }}</span>
+        <span class="grow"></span>
+        <button class="btn small" type="submit" form="issue-{{ issue.id }}">儲存</button>
+        <button class="link danger" type="submit" form="issue-del-{{ issue.id }}" data-confirm="刪除 {{ issue.code }}？">刪除</button>
+      </div>
+      <div class="grid-form">
+        <label>首次發現日期<input form="issue-{{ issue.id }}" type="date" name="first_found_date" required value="{{ issue.first_found_date.isoformat() }}"></label>
+        <label>來源<select form="issue-{{ issue.id }}" name="source">{{ options(ISSUE_SOURCES, issue.source) }}</select></label>
+        <label>本月狀態<select form="issue-{{ issue.id }}" name="status">{{ options(ISSUE_STATUSES, shown) }}</select></label>
+        <label>關閉日期<input form="issue-{{ issue.id }}" type="date" name="close_date" value="{{ issue.close_date.isoformat() if issue.close_date else '' }}"></label>
+        <label class="span-2">相關設備或檢查項目<input form="issue-{{ issue.id }}" name="related_label" value="{{ issue.related_label or '' }}" placeholder="設備或檢查項目"></label>
+        <label class="span-2">相關設備
+          <select form="issue-{{ issue.id }}" name="device_id">
+            <option value="">不指定設備</option>
+            {% for device in devices %}
+            <option value="{{ device.id }}"{% if issue.device_id == device.id %} selected{% endif %}>{{ device.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="span-2">問題摘要<textarea form="issue-{{ issue.id }}" name="summary" rows="2" required>{{ issue.summary }}</textarea></label>
+        <label>本月觀察/更新<textarea form="issue-{{ issue.id }}" name="observation" rows="2">{{ month.observation if month and month.observation else '' }}</textarea></label>
+        <label>跟進行動<textarea form="issue-{{ issue.id }}" name="action" rows="2">{{ (month.action if month and month.action else issue.action) or '' }}</textarea></label>
+      </div>
+      <div class="shot-row">
+        {{ thumbs(row.attachments) }}
+        {% for file in row.attachments %}{{ delete_shot(file, next ~ "#issues") }}{% endfor %}
+        {{ uploader("issue", issue.id, next ~ "#issues") }}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% for row in view.issues %}
+  <form id="issue-{{ row.issue.id }}" method="post" action="/issues/{{ row.issue.id }}">
+    <input type="hidden" name="check_id" value="{{ current.id }}">
+  </form>
+  <form id="issue-del-{{ row.issue.id }}" method="post" action="/issues/{{ row.issue.id }}/delete">
+    <input type="hidden" name="check_id" value="{{ current.id }}">
+  </form>
+  {% endfor %}
+  {% else %}
+  <p class="empty">這個月還沒有問題。下面可以登記新的一筆。</p>
+  {% endif %}
+
+  <form class="subcard" method="post" action="/clients/{{ client.id }}/issues">
+    <h3>登記新問題</h3>
+    <input type="hidden" name="check_id" value="{{ current.id }}">
+    <div class="grid-form">
+      <label>首次發現日期<input type="date" name="first_found_date" required value="{{ current.check_date.isoformat() }}"></label>
+      <label>來源<select name="source">{{ options(ISSUE_SOURCES, "月度檢查表") }}</select></label>
+      <label>本月狀態<select name="status">{{ options(ISSUE_STATUSES, "開放") }}</select></label>
+      <label>相關設備
+        <select name="device_id">
+          <option value="">不指定</option>
+          {% for device in devices %}<option value="{{ device.id }}">{{ device.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="span-2">相關設備或檢查項目<input name="related_label" maxlength="300" placeholder="例如 AP-01 或 最近一次成功備份"></label>
+      <label class="span-2">問題摘要<textarea name="summary" rows="2" required></textarea></label>
+      <label>本月觀察/更新<textarea name="observation" rows="2"></textarea></label>
+      <label>跟進行動<textarea name="action" rows="2"></textarea></label>
+      <label>關閉日期<input type="date" name="close_date"></label>
+    </div>
+    <button class="btn" type="submit">登記（編號自動產生）</button>
+  </form>
+</section>
+
+<section id="expiries" class="card">
+  <div class="card-head">
+    <h2>到期預警</h2>
+    <p class="hint">到期日請人手填寫，不會自動從設備清單帶入。剩餘日數相對檢查日期 <strong>{{ current.check_date }}</strong>，不是今天。</p>
+  </div>
+  {% if view.expiries %}
+  <div class="sheet">
+    <table class="grid expiries">
+      <thead>
+        <tr>
+          <th>類型</th>
+          <th>項目名稱</th>
+          <th>相關設備</th>
+          <th>到期日</th>
+          <th>剩餘日數</th>
+          <th>預警狀態</th>
+          <th>備註</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in view.expiries %}
+        {% set expiry = row.expiry %}
+        <tr>
+          <td><select form="ex-{{ expiry.id }}" name="kind">{{ options(EXPIRY_KINDS, expiry.kind) }}</select></td>
+          <td>
+            <input form="ex-{{ expiry.id }}" name="name" required value="{{ expiry.name }}">
+            {% if expiry.copied_from_device %}<span class="tag">由設備保固抄入</span>{% endif %}
+          </td>
+          <td>
+            <select form="ex-{{ expiry.id }}" name="device_id">
+              <option value="">不指定</option>
+              {% for device in devices %}
+              <option value="{{ device.id }}"{% if expiry.device_id == device.id %} selected{% endif %}>{{ device.name }}</option>
+              {% endfor %}
+            </select>
+            <input form="ex-{{ expiry.id }}" name="related_label" value="{{ expiry.related_label or '' }}" placeholder="顯示名稱">
+          </td>
+          <td><input form="ex-{{ expiry.id }}" type="date" name="expiry_date" required value="{{ expiry.expiry_date.isoformat() }}"></td>
+          <td class="num">{{ row.days if row.days is not none else "—" }}</td>
+          <td><span class="status status-{{ row.status }}">{{ row.status }}</span></td>
+          <td><textarea form="ex-{{ expiry.id }}" name="notes" rows="2">{{ expiry.notes or '' }}</textarea></td>
+          <td class="nowrap">
+            <button class="btn small" type="submit" form="ex-{{ expiry.id }}">儲存</button>
+            <button class="link danger" type="submit" form="ex-del-{{ expiry.id }}" data-confirm="刪除「{{ expiry.name }}」？">刪除</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% for row in view.expiries %}
+  <form id="ex-{{ row.expiry.id }}" method="post" action="/expiries/{{ row.expiry.id }}">
+    <input type="hidden" name="check_id" value="{{ current.id }}">
+  </form>
+  <form id="ex-del-{{ row.expiry.id }}" method="post" action="/expiries/{{ row.expiry.id }}/delete">
+    <input type="hidden" name="check_id" value="{{ current.id }}">
+  </form>
+  {% endfor %}
+  {% else %}
+  <p class="empty">尚未有到期項目。</p>
+  {% endif %}
+
+  <div class="split">
+    <form class="subcard" method="post" action="/clients/{{ client.id }}/expiries">
+      <h3>新增到期項目</h3>
+      <input type="hidden" name="check_id" value="{{ current.id }}">
+      <label>類型<select name="kind">{{ options(EXPIRY_KINDS, "授權") }}</select></label>
+      <label>項目名稱<input name="name" required maxlength="300" placeholder="例如 防火牆授權"></label>
+      <label>相關設備
+        <select name="device_id">
+          <option value="">不指定</option>
+          {% for device in devices %}<option value="{{ device.id }}">{{ device.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>相關設備（文字）<input name="related_label" maxlength="300"></label>
+      <label>到期日<input type="date" name="expiry_date" required></label>
+      <label>備註<textarea name="notes" rows="2"></textarea></label>
+      <button class="btn" type="submit">新增</button>
+    </form>
+    <form class="subcard" method="post" action="/clients/{{ client.id }}/expiries/copy-warranty">
+      <h3>從設備保固抄入</h3>
+      <input type="hidden" name="check_id" value="{{ current.id }}">
+      <p class="hint">只會抄你選的那一台，而且只在它填了保固／支援到期日時。相同日期的保固不會重複。</p>
+      <label>設備
+        <select name="device_id" required>
+          <option value="">請選擇</option>
+          {% for device in devices %}
+          <option value="{{ device.id }}">{{ device.name }}{% if device.warranty_expiry %} · {{ device.warranty_expiry }}{% else %} · 未填到期日{% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="btn ghost" type="submit">抄入為保固</button>
+    </form>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

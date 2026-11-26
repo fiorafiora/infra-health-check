@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-HK">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}月度遠端健康檢查{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>
+          <strong>月度遠端健康檢查</strong>
+          <small>VPN / AnyDesk　時點快照</small>
+        </span>
+      </a>
+      <nav class="topnav">
+        <a href="/">客戶</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wrap">
+    {% if err %}
+    <div class="banner error" role="alert">{{ err }}</div>
+    {% endif %}
+    {% if msg %}
+    <div class="banner ok" role="status">{{ msg }}</div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <p>本工具僅供內部網路或 VPN 使用，目前不設登入。請勿暴露到公開互聯網。</p>
+    <p>檢查結果只反映檢查當下，不是 24 小時監控。</p>
+  </footer>
+  <div id="lightbox" class="lightbox" hidden>
+    <button type="button" class="lightbox-close" data-close-lightbox>關閉</button>
+    <img alt="">
+  </div>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

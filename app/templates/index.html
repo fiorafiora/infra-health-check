@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}客戶一覽 · 月度遠端健康檢查{% endblock %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">內部檢查紀錄</p>
+    <h1>客戶與站點</h1>
+    <p class="lede">每月遠端健康檢查。欄位、檢查順序與紅／黃／綠燈號沿用原本的 Excel 範本。每個客戶一個站點，每個月一份檢查。</p>
+  </div>
+</section>
+
+{% if has_demo %}
+<aside class="banner demo">
+  <strong>目前包含示範資料。</strong>
+  客戶A、客戶B、客戶C、192.0.2.x 與 ISS 編號都不是真實客戶，正式使用前請刪除。
+  客戶A 最新月份應為紅（AP-01 離線、ISS-001）；客戶B 十月綠、十一月黃；客戶C 為未完成。
+</aside>
+{% endif %}
+
+<section class="layout-home">
+  <div class="card">
+    <div class="card-head">
+      <h2>客戶</h2>
+      <input id="client-filter" type="search" placeholder="篩選客戶或站點" aria-label="篩選客戶或站點">
+    </div>
+    {% if cards %}
+    <div class="sheet">
+      <table class="list">
+        <thead>
+          <tr>
+            <th>客戶名稱</th>
+            <th>站點</th>
+            <th>最近月份</th>
+            <th>整體燈號</th>
+            <th>設備</th>
+            <th>未關閉跟進</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for card in cards %}
+          <tr data-client="{{ card.client.name }}" data-site="{{ card.client.site }}" data-light="{{ card.light }}">
+            <td>
+              <a class="name-link" href="/clients/{{ card.client.id }}{% if card.check_id %}?check={{ card.check_id }}{% endif %}">{{ card.client.name }}</a>
+              {% if card.client.is_demo %}<span class="tag">範例</span>{% endif %}
+            </td>
+            <td>{{ card.client.site }}</td>
+            <td>{{ card.year_month or "—" }}</td>
+            <td>{% if card.light %}<span class="light light-{{ card.light }}">{{ card.light }}</span>{% else %}—{% endif %}</td>
+            <td>{{ card.device_count }}</td>
+            <td>{{ card.open_followups }}</td>
+            <td><a class="btn small ghost" href="/clients/{{ card.client.id }}{% if card.check_id %}?check={{ card.check_id }}{% endif %}">打開</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="empty">還沒有客戶。在右邊新增第一個站點。</p>
+    {% endif %}
+  </div>
+
+  <form class="card form-card" method="post" action="/clients">
+    <h2>新增客戶</h2>
+    <label>客戶名稱<input name="name" required maxlength="200" placeholder="例如：客戶A"></label>
+    <label>站點<input name="site" required maxlength="200" placeholder="例如：站點-範例"></label>
+    <label>備註<textarea name="notes" rows="3" maxlength="4000" placeholder="選填"></textarea></label>
+    <button class="btn" type="submit">新增</button>
+  </form>
+</section>
+{% endblock %}
