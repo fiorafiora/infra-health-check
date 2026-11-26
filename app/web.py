@@ -171,17 +171,53 @@ def health():
     return {"status": "ok"}
 
 
+def _site_summary(db: Session, site: Site) -> dict:
+    latest = db.scalar(
+        select(Check)
+        .where(Check.site_id == site.id)
+        .order_by(Check.check_date.desc(), Check.id.desc())
+    )
+    light = ""
+    year_month = ""
+    check_date = ""
+    check_id = None
+    if latest:
+        view = build_check_view(db, latest)
+        light = view["light"]
+        year_month = latest.year_month
+        check_date = latest.check_date.isoformat()
+        check_id = latest.id
+    site_devices = db.scalars(
+        select(Device).where(Device.site_id == site.id).order_by(Device.sort_order, Device.id)
+    ).all()
+    return {
+        "site": site,
+        "light": light,
+        "year_month": year_month,
+        "check_date": check_date,
+        "device_count": len(site_devices),
+        "devices": site_devices,
+        "check_id": check_id,
+    }
+
+
 @router.get("/")
 def index(request: Request, db: Session = Depends(get_db)):
     customers = db.scalars(select(Customer).order_by(Customer.id)).all()
-    cards = []
+    groups = []
     for customer in customers:
         sites = db.scalars(select(Site).where(Site.customer_id == customer.id).order_by(Site.id)).all()
-        cards.append({"customer": customer, "site_count": len(sites)})
+        groups.append(
+            {
+                "customer": customer,
+                "sites": [_site_summary(db, site) for site in sites],
+            }
+        )
+    db.commit()
     return render(
         request,
         "index.html",
-        cards=cards,
+        groups=groups,
         has_demo=any(customer.is_demo for customer in customers),
         today=date.today(),
     )
@@ -205,32 +241,7 @@ def customer_page(customer_id: int, request: Request, db: Session = Depends(get_
     if customer is None:
         return not_found()
     sites = db.scalars(select(Site).where(Site.customer_id == customer.id).order_by(Site.id)).all()
-    rows = []
-    for site in sites:
-        latest = db.scalar(
-            select(Check).where(Check.site_id == site.id).order_by(Check.check_date.desc())
-        )
-        light = ""
-        year_month = ""
-        check_id = None
-        if latest:
-            view = build_check_view(db, latest)
-            light = view["light"]
-            year_month = latest.year_month
-            check_id = latest.id
-        site_devices = db.scalars(
-            select(Device).where(Device.site_id == site.id).order_by(Device.sort_order, Device.id)
-        ).all()
-        rows.append(
-            {
-                "site": site,
-                "light": light,
-                "year_month": year_month,
-                "device_count": len(site_devices),
-                "devices": site_devices,
-                "check_id": check_id,
-            }
-        )
+    rows = [_site_summary(db, site) for site in sites]
     db.commit()
     return render(request, "customer.html", customer=customer, rows=rows)
 

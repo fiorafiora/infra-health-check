@@ -46,9 +46,26 @@ const clientFilter = document.getElementById("client-filter");
 if (clientFilter) {
   clientFilter.addEventListener("input", () => {
     const query = clientFilter.value.trim().toLowerCase();
-    document.querySelectorAll("tr[data-client]").forEach((row) => {
-      const haystack = `${row.dataset.client} ${row.dataset.site}`.toLowerCase();
-      row.hidden = Boolean(query) && !haystack.includes(query);
+    document.querySelectorAll("tbody.customer-group").forEach((group) => {
+      const customer = (group.dataset.client || "").toLowerCase();
+      const customerHit = !query || customer.includes(query);
+      group.querySelectorAll("tr[data-site]").forEach((row) => {
+        const site = (row.dataset.site || "").toLowerCase();
+        row.hidden = !(customerHit || (query && site.includes(query)));
+      });
+      const visibleSite = group.querySelector("tr[data-site]:not([hidden])");
+      group.hidden = Boolean(query) && !customerHit && !visibleSite;
+    });
+  });
+}
+
+const siteFilter = document.getElementById("site-filter");
+if (siteFilter) {
+  siteFilter.addEventListener("input", () => {
+    const query = siteFilter.value.trim().toLowerCase();
+    document.querySelectorAll("[data-site-group]").forEach((group) => {
+      const name = (group.dataset.siteGroup || "").toLowerCase();
+      group.hidden = Boolean(query) && !name.includes(query);
     });
   });
 }

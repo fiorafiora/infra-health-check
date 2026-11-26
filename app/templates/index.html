@@ -16,30 +16,46 @@
   <div class="card">
     <div class="card-head">
       <h2>Customers</h2>
-      <input id="client-filter" type="search" placeholder="Filter by customer" aria-label="Filter by customer">
+      <input id="client-filter" type="search" placeholder="Filter by customer or site" aria-label="Filter by customer or site">
     </div>
-    {% if cards %}
+    {% if groups %}
     <div class="sheet">
       <table class="list">
         <thead>
           <tr>
-            <th>Customer</th>
-            <th>Sites</th>
+            <th>Customer / site</th>
+            <th>Last check</th>
+            <th>Overall</th>
+            <th>Devices</th>
             <th></th>
           </tr>
         </thead>
-        <tbody>
-          {% for card in cards %}
-          <tr data-client="{{ card.customer.name }}" data-site="" data-light="">
-            <td>
-              <a class="name-link" href="/customers/{{ card.customer.id }}">{{ card.customer.name }}</a>
-              {% if card.customer.is_demo %}<span class="tag">Example</span>{% endif %}
+        {% for group in groups %}
+        <tbody class="customer-group" data-client="{{ group.customer.name }}">
+          <tr class="group-head">
+            <td colspan="5">
+              <a class="name-link" href="/customers/{{ group.customer.id }}">{{ group.customer.name }}</a>
+              {% if group.customer.is_demo %}<span class="tag">Example</span>{% endif %}
             </td>
-            <td>{{ card.site_count }}</td>
-            <td><a class="btn small ghost" href="/customers/{{ card.customer.id }}">Open</a></td>
+          </tr>
+          {% for row in group.sites %}
+          <tr data-client="{{ group.customer.name }}" data-site="{{ row.site.name }}" data-light="{{ row.light }}">
+            <td class="nest-site">
+              <a class="name-link" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">{{ row.site.name }}</a>
+            </td>
+            <td>{{ row.check_date or "—" }}</td>
+            <td>{% if row.light %}<span class="light" data-light="{{ row.light }}">{{ row.light }}</span>{% else %}—{% endif %}</td>
+            <td>{{ row.device_count }}</td>
+            <td><a class="btn small ghost" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">Open</a></td>
+          </tr>
+          {% else %}
+          <tr data-client="{{ group.customer.name }}" data-site="">
+            <td class="nest-site" colspan="4">No sites yet</td>
+            <td><a class="btn small ghost" href="/customers/{{ group.customer.id }}">Open</a></td>
           </tr>
           {% endfor %}
         </tbody>
+        {% endfor %}
       </table>
     </div>
     {% else %}

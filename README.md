@@ -76,7 +76,7 @@ An older database, from before customers had separate sites, is updated on start
 
 ## What you can do
 
-- Several customers. One customer can have several sites, for example different stores. Each site has its own devices, its own month, and its own PDF and Excel report. On a site, save each device on its own. Other stores are not included.
+- Several customers. The customer list nests each site under its customer, and the list can be filtered by customer or site. Each site row shows the last check date. Each site has its own devices, its own month, and its own PDF and Excel report. On a site, save each device on its own. Other stores are not included.
 - Add a device in its own section. The device list below is the checks for the open month.
 - Device types: Server, Router, Switch, Firewall, AP, NVR, Other.
 - Start a month with the check date, engineer, duration, and notes.

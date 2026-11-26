@@ -51,9 +51,17 @@ def test_seeded_home_shows_three_demo_lights(client):
     assert font.headers["content-type"].startswith("font/") or len(font.content) > 1000
     assert "Company A" in body
     assert "Customers" in body
+    assert "Last check" in body
+    assert 'data-site="Main store" data-light="Red"' in body
+    assert "2026-11-01" in body
+    assert 'data-site="Branch store" data-light="Green"' in body
+    assert "2026-10-02" in body
     company = client.get(f"/customers/{_customer_id(body, 'Company A')}")
     assert "Main store" in company.text
     assert "Branch store" in company.text
+    assert "Last check" in company.text
+    assert "2026-11-01" in company.text
+    assert "2026-10-02" in company.text
     assert 'data-site="Main store" data-light="Red"' in company.text
     assert "SW-BR" in company.text
     assert "AP-BR" in company.text

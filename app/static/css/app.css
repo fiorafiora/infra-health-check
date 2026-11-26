@@ -89,7 +89,7 @@ h3 { font-size: 14px; }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
 .layout-home { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 10px; align-items: start; }
 .form-card, .tight { min-width: 0; }
-#client-filter { width: 220px; }
+#client-filter, #site-filter { width: 240px; }
 
 .banner { padding: 6px 8px; margin: 0 0 8px; border: 1px solid var(--line); background: #fff; }
 .banner.error { border-color: #e3b4b4; color: var(--bad); background: #fff6f6; }
@@ -223,6 +223,9 @@ table { border-collapse: collapse; }
   border: 1px solid #ddd;
   background: white;
 }
+.list tr.group-head td { background: #f3f3f3; font-weight: 700; }
+.list td.nest-site { padding-left: 28px; box-shadow: inset 3px 0 0 #c5c5c5; }
+.list tr.child td { color: var(--muted); background: #fafafa; padding-left: 28px; }
 .list th, .grid th {
   background: #e8e8e8;
   color: #222;
