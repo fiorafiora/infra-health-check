@@ -308,7 +308,10 @@ details summary { cursor: pointer; }
 details form { margin-top: 8px; }
 .start-month { margin-top: 8px; }
 .device-block { border-top: 1px solid var(--line); padding: 8px 0 10px; }
-.device-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-bottom: 4px; }
+.device-head { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin: 2px 0 8px; }
+.device-name { font-size: 22px; font-weight: 700; color: #111; line-height: 1.2; }
+.device-ip { font-size: 20px; font-weight: 700; color: #0b3a75; line-height: 1.2; }
+.device-type { font-size: 13px; color: #444; }
 .mini { width: 100%; border-collapse: collapse; }
 .mini th, .mini td { border: 1px solid #ddd; padding: 4px 6px; vertical-align: top; background: #fff; }
 .mini th { background: #eee; font-size: 12px; text-align: left; }

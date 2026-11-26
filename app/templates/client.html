@@ -162,9 +162,9 @@
   {% set device = row.device %}
   <article class="device-block" id="device-{{ device.id }}">
     <header class="device-head">
-      <strong>{{ device.name }}</strong>
-      <span>{{ device.device_type }}</span>
-      <span>{{ device.ip_address or "—" }}</span>
+      <span class="device-name">{{ device.name }}</span>
+      <span class="device-ip">{{ device.ip_address or "—" }}</span>
+      <span class="device-type">{{ device.device_type }}</span>
       <span class="muted">{{ device.model or "" }} {{ device.firmware or "" }}</span>
     </header>
     <form id="device-form-{{ device.id }}" method="post" action="/checks/{{ current.id }}/device-checks">
@@ -175,7 +175,7 @@
       <thead>
         <tr>
           <th>Check</th>
-          <th>Command</th>
+          <th>Method</th>
           <th>Result</th>
           <th>Issue</th>
           <th>Last month</th>
@@ -221,7 +221,7 @@
     <form class="inline-add" method="post" action="/devices/{{ device.id }}/checks">
       <input type="hidden" name="check_id" value="{{ current.id }}">
       <label>Check<input name="name" required maxlength="200" placeholder="HDD, playback, AP down"></label>
-      <label>Command<input name="command" maxlength="500" placeholder="show interfaces status"></label>
+      <label>Method<input name="command" maxlength="500" placeholder="show interfaces status"></label>
       <button class="btn small" type="submit">Add check</button>
     </form>
   </article>
