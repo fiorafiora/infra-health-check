@@ -153,21 +153,23 @@
 
 <section id="devices" class="card">
   <div class="card-head">
-    <h2>Devices</h2>
-    <p class="hint">Checks for this month. A new month loads the checks you saved on each device.</p>
+    <h2>Devices · {{ site.name }}</h2>
+    <p class="hint">Do each device on this site by itself. Saving one device does not change the others, and other sites are not included.</p>
   </div>
 
   {% if view.devices %}
-  <form id="device-checks-form" method="post" action="/checks/{{ current.id }}/device-checks"></form>
   {% for row in view.devices %}
   {% set device = row.device %}
-  <article class="device-block">
+  <article class="device-block" id="device-{{ device.id }}">
     <header class="device-head">
       <strong>{{ device.name }}</strong>
       <span>{{ device.device_type }}</span>
       <span>{{ device.ip_address or "—" }}</span>
       <span class="muted">{{ device.model or "" }} {{ device.firmware or "" }}</span>
     </header>
+    <form id="device-form-{{ device.id }}" method="post" action="/checks/{{ current.id }}/device-checks">
+      <input type="hidden" name="device_anchor" value="device-{{ device.id }}">
+    </form>
     {% if row.checks %}
     <table class="mini">
       <thead>
@@ -189,16 +191,16 @@
           <td>{{ item.name }}</td>
           <td class="muted">{{ item.command or "—" }}</td>
           <td>
-            <select form="device-checks-form" name="dresult_{{ result.id }}">
+            <select form="device-form-{{ device.id }}" name="dresult_{{ result.id }}">
               {{ options(DEVICE_RESULTS, result.result, true) }}
             </select>
           </td>
-          <td><input form="device-checks-form" name="dissue_{{ result.id }}" value="{{ result.issue or '' }}" placeholder="Issue"></td>
+          <td><input form="device-form-{{ device.id }}" name="dissue_{{ result.id }}" value="{{ result.issue or '' }}" placeholder="Issue"></td>
           <td>{% if line.prev_result %}<span class="status" data-status="{{ line.prev_result }}">{{ line.prev_result }}</span>{% else %}—{% endif %}</td>
           <td>
             {{ thumbs(line.attachments) }}
-            {% for file in line.attachments %}{{ delete_shot(file, next ~ "#devices") }}{% endfor %}
-            {{ uploader("device_check_result", result.id, next ~ "#devices") }}
+            {% for file in line.attachments %}{{ delete_shot(file, next ~ "#device-" ~ device.id) }}{% endfor %}
+            {{ uploader("device_check_result", result.id, next ~ "#device-" ~ device.id) }}
           </td>
           <td>
             <form method="post" action="/device-checks/{{ item.id }}/delete">
@@ -210,6 +212,9 @@
         {% endfor %}
       </tbody>
     </table>
+    <div class="savebar">
+      <button class="btn" type="submit" form="device-form-{{ device.id }}">Save {{ device.name }}</button>
+    </div>
     {% else %}
     <p class="empty">No checks on this device yet.</p>
     {% endif %}
@@ -221,11 +226,8 @@
     </form>
   </article>
   {% endfor %}
-  <div class="savebar">
-    <button class="btn" type="submit" form="device-checks-form">Save checks</button>
-  </div>
   {% else %}
-  <p class="empty">No devices on this month. Add one above.</p>
+  <p class="empty">No devices on this month. Add one above. Devices from other sites are not listed here.</p>
   {% endif %}
 
 </section>

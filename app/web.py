@@ -145,6 +145,13 @@ def safe_next(value, fallback: str) -> str:
     return text
 
 
+def _device_anchor(form) -> str:
+    text = clean(form.get("device_anchor"), 40) or ""
+    if text.startswith("device-") and text.removeprefix("device-").isdigit():
+        return text
+    return "devices"
+
+
 def site_url(site_id: int, check_id: int | None = None, anchor: str = "") -> str:
     url = f"/sites/{site_id}"
     if check_id:
@@ -211,15 +218,16 @@ def customer_page(customer_id: int, request: Request, db: Session = Depends(get_
             light = view["light"]
             year_month = latest.year_month
             check_id = latest.id
-        device_count = db.scalar(
-            select(func.count()).select_from(Device).where(Device.site_id == site.id)
-        )
+        site_devices = db.scalars(
+            select(Device).where(Device.site_id == site.id).order_by(Device.sort_order, Device.id)
+        ).all()
         rows.append(
             {
                 "site": site,
                 "light": light,
                 "year_month": year_month,
-                "device_count": device_count or 0,
+                "device_count": len(site_devices),
+                "devices": site_devices,
                 "check_id": check_id,
             }
         )
@@ -410,8 +418,8 @@ async def save_device_checks(check_id: int, request: Request, db: Session = Depe
         save_device_check_results(db, check, form)
         db.commit()
     except FormError as exc:
-        return go(site_url(check.site_id, check.id, "devices"), err=str(exc))
-    return go(site_url(check.site_id, check.id, "devices"), msg="Checks saved.")
+        return go(site_url(check.site_id, check.id, _device_anchor(form)), err=str(exc))
+    return go(site_url(check.site_id, check.id, _device_anchor(form)), msg="This device was saved.")
 
 
 @router.post("/devices/{device_id}/checks")

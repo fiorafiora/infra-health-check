@@ -174,12 +174,19 @@ def delete_device_check(db: Session, item: DeviceCheck, upload_dir) -> None:
 
 
 def save_device_check_results(db: Session, check: Check, form) -> None:
+    """Update only the device that was submitted. Other devices on this site stay as they are."""
     rows = db.scalars(
         select(DeviceCheckResult).where(DeviceCheckResult.check_id == check.id)
     ).all()
     for row in rows:
-        row.result = optional_choice(form.get(f"dresult_{row.id}"), DEVICE_STATUSES)
-        row.issue = clean(form.get(f"dissue_{row.id}"))
+        result_key = f"dresult_{row.id}"
+        issue_key = f"dissue_{row.id}"
+        if result_key not in form and issue_key not in form:
+            continue
+        if result_key in form:
+            row.result = optional_choice(form.get(result_key), DEVICE_STATUSES)
+        if issue_key in form:
+            row.issue = clean(form.get(issue_key))
 
 
 def start_check(

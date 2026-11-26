@@ -23,33 +23,8 @@
 
 <section class="card">
   <h2>Sites</h2>
-  <p class="hint">Each site has its own monthly report. Stores are not combined into one report.</p>
-  {% if rows %}
-  <div class="sheet">
-    <table class="list">
-      <thead>
-        <tr>
-          <th>Site</th>
-          <th>Latest month</th>
-          <th>Overall</th>
-          <th>Devices</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in rows %}
-        <tr data-site="{{ row.site.name }}" data-light="{{ row.light }}">
-          <td><a class="name-link" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">{{ row.site.name }}</a></td>
-          <td>{{ row.year_month or "—" }}</td>
-          <td>{% if row.light %}<span class="light" data-light="{{ row.light }}">{{ row.light }}</span>{% else %}—{% endif %}</td>
-          <td>{{ row.device_count }}</td>
-          <td><a class="btn small ghost" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">Open</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
+  <p class="hint">Each site’s devices are done on that site. They are not shared with the customer’s other stores, and they are not in the same report.</p>
+  {% if not rows %}
   <p class="empty">No sites yet.</p>
   {% endif %}
   <form class="inline-add" method="post" action="/customers/{{ customer.id }}/sites">
@@ -57,4 +32,41 @@
     <button class="btn" type="submit">Add site</button>
   </form>
 </section>
+
+{% for row in rows %}
+<section class="card" data-site="{{ row.site.name }}" data-light="{{ row.light }}">
+  <div class="card-head">
+    <h2><a class="name-link" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">{{ row.site.name }}</a></h2>
+    <a class="btn small" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">Do this site</a>
+  </div>
+  <p class="hint">
+    Latest month {{ row.year_month or "—" }}
+    {% if row.light %}· <span class="light" data-light="{{ row.light }}">{{ row.light }}</span>{% endif %}
+  </p>
+  {% if row.devices %}
+  <div class="sheet">
+    <table class="list">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Device</th>
+          <th>IP address</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for device in row.devices %}
+        <tr>
+          <td>{{ device.device_type }}</td>
+          <td>{{ device.name }}</td>
+          <td>{{ device.ip_address or "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No devices on this site yet. Open it to add them.</p>
+  {% endif %}
+</section>
+{% endfor %}
 {% endblock %}

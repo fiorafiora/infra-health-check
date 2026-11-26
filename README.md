@@ -66,7 +66,7 @@ The first start, on an empty database, loads three example customers. Addresses 
 
 | Customer | Sites | What you should see |
 | --- | --- | --- |
-| Company A | Main store, Branch store | Main store has October and November 2026. November is red: AP-01 offline, and an NVR disk fault. Branch store has no devices yet |
+| Company A | Main store, Branch store | Main store has October and November 2026. November is red: AP-01 offline, and an NVR disk fault. Branch store has its own devices (SW-BR, AP-BR) and its own green October check |
 | Company B | Head office | October and November are green |
 | Company C | Warehouse | Cover only, so the light is Not started |
 
@@ -76,7 +76,7 @@ An older database, from before customers had separate sites, is updated on start
 
 ## What you can do
 
-- Several customers. One customer can have several sites, for example different stores. Each site has its own devices, its own month, and its own PDF and Excel report. Other stores are not included.
+- Several customers. One customer can have several sites, for example different stores. Each site has its own devices, its own month, and its own PDF and Excel report. On a site, save each device on its own. Other stores are not included.
 - Add a device in its own section. The device list below is the checks for the open month.
 - Device types: Server, Router, Switch, Firewall, AP, NVR, Other.
 - Start a month with the check date, engineer, duration, and notes.

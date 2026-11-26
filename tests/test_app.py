@@ -55,13 +55,21 @@ def test_seeded_home_shows_three_demo_lights(client):
     assert "Main store" in company.text
     assert "Branch store" in company.text
     assert 'data-site="Main store" data-light="Red"' in company.text
-    branch = re.search(r'href="(/sites/\d+)">Branch store', company.text)
+    assert "SW-BR" in company.text
+    assert "AP-BR" in company.text
+    main_card, branch_card = company.text.split("Branch store", 1)
+    assert "SW-BR" not in main_card
+    assert "SRV-01" not in branch_card
+    branch = re.search(r'href="(/sites/\d+(?:\?check=\d+)?)">Branch store', company.text)
     assert branch
     branch_page = client.get(branch.group(1))
     assert 'id="add-device"' in branch_page.text
-    assert branch_page.text.find('id="add-device"') < branch_page.text.find('id="devices"') or 'id="devices"' not in branch_page.text
+    assert branch_page.text.find('id="add-device"') < branch_page.text.find('id="devices"')
+    assert "Save SW-BR" in branch_page.text
     assert "AP-01" not in branch_page.text
     assert "SRV-01" not in branch_page.text
+    assert "SW-BR" in branch_page.text
+    assert "AP-BR" in branch_page.text
     company_b = client.get(f"/customers/{_customer_id(body, 'Company B')}")
     assert 'data-site="Head office" data-light="Green"' in company_b.text
     company_c = client.get(f"/customers/{_customer_id(body, 'Company C')}")
@@ -157,6 +165,8 @@ def test_excel_and_pdf_export(client):
         for cell in row
     )
     assert "BR-AP" not in main_values
+    assert "SW-BR" not in main_values
+    assert "AP-BR" not in main_values
     assert "Branch store only" not in main_values
     assert "Main store" in main_values
     branch_book = load_workbook(BytesIO(client.get(f"/checks/{branch_check}/export.xlsx").content))

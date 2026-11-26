@@ -45,8 +45,10 @@ def seed_if_empty(db: Session, upload_dir: Path) -> None:
 
 def _seed(db: Session, upload_dir: Path) -> None:
     client_a = _client(db, "Company A", "Main store", "Example data. Delete before real use.")
-    db.add(Site(customer_id=client_a.customer_id, name="Branch store"))
+    branch = Site(customer_id=client_a.customer_id, name="Branch store")
+    db.add(branch)
     db.flush()
+    _seed_branch(db, branch)
     srv, fw, sw, ap, nvr = _devices_a(db, client_a)
     ups = CustomCheckItem(client_id=client_a.customer_id, name="UPS battery status", sort_order=10, active=True)
     db.add(ups)
@@ -356,6 +358,53 @@ def _seed(db: Session, upload_dir: Path) -> None:
         )
     )
     db.flush()
+
+
+def _seed_branch(db, site: Site) -> None:
+    """Branch store has its own devices and its own month. Nothing is copied from Main store."""
+    switch = Device(
+        site_id=site.id,
+        device_type="Switch",
+        name="SW-BR",
+        model="Model-SW",
+        serial_no="SN-SW-BR",
+        ip_address="192.0.2.60",
+        firmware="v1.0.1",
+        warranty_expiry=D(2028, 1, 31),
+        added_on=D(2026, 9, 1),
+        sort_order=10,
+    )
+    access_point = Device(
+        site_id=site.id,
+        device_type="AP",
+        name="AP-BR",
+        model="Model-AP",
+        serial_no="SN-AP-BR",
+        ip_address="192.0.2.61",
+        firmware="v3.0.1",
+        added_on=D(2026, 9, 1),
+        sort_order=20,
+    )
+    db.add_all([switch, access_point])
+    db.flush()
+    october = _check(
+        db,
+        site,
+        D(2026, 10, 2),
+        "",
+        1,
+        "Example: this store is checked on its own. Main store devices are not included.",
+    )
+    _device_months(
+        db,
+        october,
+        [
+            (switch, "Normal", None, None, None, D(2026, 9, 1)),
+            (access_point, "Normal", None, None, None, D(2026, 9, 1)),
+        ],
+    )
+    _seed_simple_checks(db, (october,), switch, "Interfaces", "show interfaces status", "Normal")
+    _seed_simple_checks(db, (october,), access_point, "Which AP is down", "", "Normal")
 
 
 def _define_check(db, device, name, command, sort_order):
