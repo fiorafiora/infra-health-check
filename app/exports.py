@@ -41,12 +41,12 @@ def build_xlsx(view: dict) -> bytes:
     check = view["check"]
     wb = Workbook()
     _cover(wb.active, view)
-    _devices(wb.create_sheet("設備清單"), view)
-    _checklist(wb.create_sheet("月度檢查表"), view)
-    _issues(wb.create_sheet("異常與跟進"), view)
-    _expiries(wb.create_sheet("到期預警"), view)
-    wb.properties.title = f"{client.name} {client.site} {check.year_month} 健康檢查"
-    wb.properties.creator = "月度遠端健康檢查"
+    _devices(wb.create_sheet("Devices"), view)
+    _checklist(wb.create_sheet("Checklist"), view)
+    _issues(wb.create_sheet("Issues"), view)
+    _expiries(wb.create_sheet("Expiries"), view)
+    wb.properties.title = f"{client.name} {client.site} {check.year_month} health check"
+    wb.properties.creator = "Monthly remote health check"
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
@@ -62,60 +62,60 @@ def build_pdf(view: dict, upload_dir: Path) -> bytes:
 
 
 def _cover(ws, view):
-    ws.title = "封面說明"
+    ws.title = "Cover"
     client, check, counts = view["client"], view["check"], view["counts"]
     ws.sheet_properties.tabColor = NAVY
-    ws["A1"] = "月度遠端健康檢查"
+    ws["A1"] = "Monthly remote health check"
     ws.merge_cells("A1:D1")
-    ws["A2"] = "每月遠端健康檢查（VPN / AnyDesk）"
+    ws["A2"] = "Monthly remote health check (VPN / AnyDesk)"
     ws.merge_cells("A2:D2")
-    ws["A4"] = "本次檢查資料"
+    ws["A4"] = "This check"
     rows = [
-        (5, "客戶名稱", client.name),
-        (6, "站點", client.site),
-        (7, "檢查日期", check.check_date),
-        (8, "工程師", check.engineer),
-        (9, "連線方式", check.connection_method),
-        (10, "檢查時長（小時）", check.duration_hours),
-        (11, "整體燈號", view["light"]),
-        (12, "整體備註", check.notes or ""),
+        (5, "Client", client.name),
+        (6, "Site", client.site),
+        (7, "Check date", check.check_date),
+        (8, "Engineer", check.engineer),
+        (9, "Connection", check.connection_method),
+        (10, "Duration (hours)", check.duration_hours),
+        (11, "Overall", view["light"]),
+        (12, "Notes", check.notes or ""),
     ]
     for row, label, value in rows:
         ws.cell(row, 1, label)
         ws.cell(row, 2, value)
         ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=4)
-    ws["A14"] = "本月摘要（由系統按 Excel 範本同一規則計算）"
+    ws["A14"] = "This month"
     ws.merge_cells("A14:D14")
     summary = [
-        (15, "月度檢查表異常項數", counts["abnormal_items"]),
-        (16, "月度檢查表已填項數", counts["filled_items"]),
-        (17, "設備清單異常數", counts["abnormal_devices"]),
-        (18, "未關閉跟進數", counts["open_followups"]),
-        (19, "已過期數", counts["expired"]),
-        (20, "30天內到期數", counts["within_30"]),
-        (21, "90天內到期數", counts["within_90"]),
+        (15, "Abnormal checklist items", counts["abnormal_items"]),
+        (16, "Checklist items filled", counts["filled_items"]),
+        (17, "Abnormal devices", counts["abnormal_devices"]),
+        (18, "Open follow-ups", counts["open_followups"]),
+        (19, "Expired", counts["expired"]),
+        (20, "Due in 30 days", counts["within_30"]),
+        (21, "Due in 90 days", counts["within_90"]),
     ]
     for row, label, value in summary:
         ws.cell(row, 1, label)
         ws.cell(row, 2, value)
-    ws["A23"] = "燈號規則"
+    ws["A23"] = "How the light is decided"
     legend = [
-        (24, "紅：本月檢查或設備有「異常」，或有已過期項目。"),
-        (25, "黃：無上述紅燈，但有未關閉跟進，或 30／90 天內到期。"),
-        (26, "綠：已填寫檢查結果，且無上述紅／黃情況。"),
-        (27, "未完成：檢查表尚未填寫，且無異常、未關閉跟進或到期預警項目。"),
-        (29, "此檢查只反映檢查當下的狀態，是時點快照；不能取代 24 小時監控。"),
-        (30, "剩餘日數依本次檢查日期計算，不是匯出當天。"),
-        (31, "重複問題沿用原問題編號。截圖檔名列於各表最後一欄，圖片存在系統，不嵌入此活頁簿。"),
+        (24, "Red: a checklist item or device is Abnormal, or something is Expired."),
+        (25, "Amber: no red condition, but a follow-up is still open, or something is due within 30 or 90 days."),
+        (26, "Green: the checklist is filled in, with no red or amber condition."),
+        (27, "Not started: the checklist is empty, with no abnormal item, open follow-up, or expiry warning."),
+        (29, "A check records that moment only. It is not 24-hour monitoring."),
+        (30, "Days remaining use this check date, not the export date."),
+        (31, "Repeat issues keep the same ID. Screenshot file names are listed; images are not embedded in this workbook."),
     ]
     for row, text in legend:
         ws.cell(row, 1, text)
         ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
     _paint_title(ws["A1"])
-    ws["A2"].font = Font(name="Microsoft JhengHei", size=12, color=SLATE)
-    ws["A4"].font = Font(name="Microsoft JhengHei", bold=True, size=13, color=NAVY)
-    ws["A14"].font = Font(name="Microsoft JhengHei", bold=True, size=13, color=NAVY)
-    ws["A23"].font = Font(name="Microsoft JhengHei", bold=True, size=13, color=NAVY)
+    ws["A2"].font = Font(name="Calibri", size=12, color=SLATE)
+    ws["A4"].font = Font(name="Calibri", bold=True, size=13, color=NAVY)
+    ws["A14"].font = Font(name="Calibri", bold=True, size=13, color=NAVY)
+    ws["A23"].font = Font(name="Calibri", bold=True, size=13, color=NAVY)
     for row in range(5, 13):
         _label(ws.cell(row, 1))
         _value(ws.cell(row, 2))
@@ -126,7 +126,7 @@ def _cover(ws, view):
         _value(cell)
         cell.alignment = CENTER
     for row in (24, 25, 26, 27, 29, 30, 31):
-        ws.cell(row, 1).font = Font(name="Microsoft JhengHei", size=11, color=INK)
+        ws.cell(row, 1).font = Font(name="Calibri", size=11, color=INK)
         ws.cell(row, 1).alignment = WRAP
     ws.row_dimensions[12].height = 36
     for col, width in {"A": 28, "B": 22, "C": 18, "D": 28}.items():
@@ -144,11 +144,11 @@ def _cover(ws, view):
 
 def _devices(ws, view):
     headers = [
-        "設備類型", "名稱/主機名稱", "型號", "序號", "IP 位址", "韌體版本",
-        "保固/支援到期日", "上次檢查日期", "本月狀態", "異常摘要", "跟進事項",
-        "首次發現日期", "截圖",
+        "Type", "Name", "Model", "Serial", "IP address", "Firmware",
+        "Warranty / support", "Last check", "This month", "Exception", "Follow-up",
+        "First found", "Screenshot",
     ]
-    _sheet_banner(ws, view, "設備清單")
+    _sheet_banner(ws, view, "Devices")
     _header_row(ws, 4, headers)
     for index, row in enumerate(view["devices"], start=5):
         device, month = row["device"], row["month"]
@@ -161,16 +161,16 @@ def _devices(ws, view):
         _write_row(ws, index, values)
         _paint_status(ws.cell(index, 9), month.status)
     _finish_table(ws, 4, len(headers), 5 + len(view["devices"]))
-    _list_validation(ws, "A5:A200", '"伺服器,交換器,防火牆,AP,NVR,其他"')
-    _list_validation(ws, "I5:I200", '"正常,異常"')
+    _list_validation(ws, "A5:A200", '"Server,Switch,Firewall,AP,NVR,Other"')
+    _list_validation(ws, "I5:I200", '"Normal,Abnormal"')
     widths = [12, 18, 16, 16, 16, 14, 18, 16, 12, 28, 22, 16, 28]
     for i, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = width
 
 
 def _checklist(ws, view):
-    headers = ["項次", "階段", "檢查項目", "本月結果", "說明/備註", "上月結果", "與上月比較", "截圖路徑或備註"]
-    _sheet_banner(ws, view, "月度檢查表（請依項次順序檢查）")
+    headers = ["#", "Stage", "Item", "This month", "Notes", "Last month", "Compared with last month", "Screenshot"]
+    _sheet_banner(ws, view, "Checklist (keep this order)")
     _header_row(ws, 4, headers)
     for index, row in enumerate(view["items"], start=5):
         item = row["item"]
@@ -182,18 +182,18 @@ def _checklist(ws, view):
         _paint_status(ws.cell(index, 4), item.result)
         _paint_compare(ws.cell(index, 7), row["compare"])
     _finish_table(ws, 4, len(headers), 5 + len(view["items"]))
-    _list_validation(ws, "D5:D80", '"正常,異常,不適用"')
-    _list_validation(ws, "F5:F80", '"正常,異常,不適用"')
+    _list_validation(ws, "D5:D80", '"Normal,Abnormal,N/A"')
+    _list_validation(ws, "F5:F80", '"Normal,Abnormal,N/A"')
     for i, width in enumerate([8, 28, 32, 12, 36, 12, 16, 28], start=1):
         ws.column_dimensions[get_column_letter(i)].width = width
 
 
 def _issues(ws, view):
     headers = [
-        "問題編號", "首次發現日期", "來源", "相關設備或檢查項目", "問題摘要",
-        "本月狀態", "本月觀察/更新", "跟進行動", "關閉日期", "截圖路徑或備註",
+        "Issue", "First found", "Source", "Related item", "Summary",
+        "Status this month", "Update this month", "Action", "Closed on", "Screenshot",
     ]
-    _sheet_banner(ws, view, "異常與跟進（未關閉問題請沿用原編號）")
+    _sheet_banner(ws, view, "Issues (keep the same ID while it is open)")
     _header_row(ws, 4, headers)
     excel_row = 5
     for row in view["issues"]:
@@ -209,19 +209,19 @@ def _issues(ws, view):
         _paint_issue(ws.cell(excel_row, 6), month.status)
         excel_row += 1
     _finish_table(ws, 4, len(headers), excel_row)
-    _list_validation(ws, "C5:C80", '"設備清單,月度檢查表,到期預警,其他"')
-    _list_validation(ws, "F5:F80", '"開放,跟進中,已關閉"')
+    _list_validation(ws, "C5:C80", '"Inventory,Checklist,Expiry,Other"')
+    _list_validation(ws, "F5:F80", '"Open,In progress,Closed"')
     for i, width in enumerate([12, 16, 14, 24, 32, 12, 28, 24, 14, 28], start=1):
         ws.column_dimensions[get_column_letter(i)].width = width
 
 
 def _expiries(ws, view):
-    headers = ["類型", "項目名稱", "相關設備", "到期日", "剩餘日數", "預警狀態", "備註"]
+    headers = ["Type", "Name", "Related device", "Expiry date", "Days left", "Status", "Notes"]
     check = view["check"]
     _sheet_banner(
         ws,
         view,
-        f"到期預警（剩餘日數相對檢查日期 {check.check_date.isoformat()}，不是匯出當天）",
+        f"Expiries (days left are from the check date {check.check_date.isoformat()}, not the export date)",
     )
     _header_row(ws, 4, headers)
     for index, row in enumerate(view["expiries"], start=5):
@@ -234,7 +234,7 @@ def _expiries(ws, view):
         _write_row(ws, index, values)
         _paint_expiry(ws.cell(index, 6), row["status"])
     _finish_table(ws, 4, len(headers), 5 + len(view["expiries"]))
-    _list_validation(ws, "A5:A80", '"授權,保固,SSL憑證,支援合約,其他"')
+    _list_validation(ws, "A5:A80", '"Licence,Warranty,SSL certificate,Support contract,Other"')
     for i, width in enumerate([14, 28, 18, 16, 12, 16, 42], start=1):
         ws.column_dimensions[get_column_letter(i)].width = width
 
@@ -244,12 +244,12 @@ def _sheet_banner(ws, view, title: str):
     ws["A1"] = title
     ws.merge_cells("A1:F1")
     _paint_title(ws["A1"])
-    ws["A2"] = f"客戶名稱  {client.name}　　站點  {client.site}"
+    ws["A2"] = f"Client  {client.name}    Site  {client.site}"
     ws.merge_cells("A2:F2")
-    ws["A3"] = f"檢查日期  {check.check_date.isoformat()}　　工程師  {check.engineer}　　整體燈號  {view['light']}"
+    ws["A3"] = f"Check date  {check.check_date.isoformat()}    Engineer  {check.engineer}    Overall  {view['light']}"
     ws.merge_cells("A3:F3")
     for cell in (ws["A2"], ws["A3"]):
-        cell.font = Font(name="Microsoft JhengHei", size=11, color=INK)
+        cell.font = Font(name="Calibri", size=11, color=INK)
     ws.row_dimensions[1].height = 24
     ws.page_setup.orientation = "landscape"
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
@@ -262,7 +262,7 @@ def _sheet_banner(ws, view, title: str):
     ws.page_margins.right = 0.4
     ws.page_margins.top = 0.6
     ws.page_margins.bottom = 0.6
-    ws.oddFooter.left.text = "內部工具　時點快照　非即時監控"
+    ws.oddFooter.left.text = "Internal tool. Point-in-time check, not live monitoring."
     ws.oddFooter.right.text = f"{client.name} {client.site} {check.year_month}"
     ws.sheet_view.showGridLines = False
     ws.sheet_view.zoomScale = 110
@@ -275,7 +275,7 @@ def _sheet_banner(ws, view, title: str):
 def _header_row(ws, row: int, headers: list[str]):
     for col, text in enumerate(headers, start=1):
         cell = ws.cell(row, col, text)
-        cell.font = Font(name="Microsoft JhengHei", bold=True, color=WHITE, size=11)
+        cell.font = Font(name="Calibri", bold=True, color=WHITE, size=11)
         cell.fill = PatternFill("solid", fgColor=NAVY)
         cell.alignment = Alignment(wrap_text=True, vertical="center", horizontal="center")
         cell.border = THIN
@@ -286,7 +286,7 @@ def _header_row(ws, row: int, headers: list[str]):
 def _write_row(ws, row: int, values: list):
     for col, value in enumerate(values, start=1):
         cell = ws.cell(row, col, None if value is None else value)
-        cell.font = Font(name="Microsoft JhengHei", size=11, color=INK)
+        cell.font = Font(name="Calibri", size=11, color=INK)
         cell.alignment = WRAP
         cell.border = THIN
         if hasattr(value, "isoformat") and not hasattr(value, "hour"):
@@ -302,84 +302,84 @@ def _finish_table(ws, header_row: int, columns: int, next_row: int):
 
 def _list_validation(ws, sqref: str, formula: str):
     rule = DataValidation(type="list", formula1=formula, allow_blank=True)
-    rule.error = "請從清單選擇"
-    rule.errorTitle = "選項"
+    rule.error = "Pick from the list"
+    rule.errorTitle = "Choice"
     rule.sqref = sqref
     ws.add_data_validation(rule)
 
 
 def _paint_title(cell):
-    cell.font = Font(name="Microsoft JhengHei", bold=True, size=16, color=NAVY)
+    cell.font = Font(name="Calibri", bold=True, size=16, color=NAVY)
     cell.alignment = Alignment(vertical="center")
 
 
 def _label(cell):
-    cell.font = Font(name="Microsoft JhengHei", size=11, color=SLATE)
+    cell.font = Font(name="Calibri", size=11, color=SLATE)
     cell.alignment = Alignment(vertical="center")
 
 
 def _value(cell):
-    cell.font = Font(name="Microsoft JhengHei", size=12, color=INK)
+    cell.font = Font(name="Calibri", size=12, color=INK)
     cell.alignment = WRAP
 
 
 def _fill_font(cell, bg: str, color: str):
     cell.fill = PatternFill("solid", fgColor=bg)
-    cell.font = Font(name="Microsoft JhengHei", bold=True, size=12, color=color)
+    cell.font = Font(name="Calibri", bold=True, size=12, color=color)
     cell.alignment = CENTER
     cell.border = THIN
 
 
 def _paint_light(cell, light: str):
     colors = {
-        "紅": (RED_BG, RED),
-        "黃": (AMBER_BG, AMBER),
-        "綠": (GREEN_BG, GREEN),
-        "未完成": (SLATE_BG, SLATE),
+        "Red": (RED_BG, RED),
+        "Amber": (AMBER_BG, AMBER),
+        "Green": (GREEN_BG, GREEN),
+        "Not started": (SLATE_BG, SLATE),
     }
     bg, fg = colors.get(light, (SLATE_BG, SLATE))
     _fill_font(cell, bg, fg)
 
 
 def _paint_status(cell, value: str | None):
-    if value == "異常":
+    if value == "Abnormal":
         _fill_font(cell, RED_BG, RED)
-    elif value == "正常":
+    elif value == "Normal":
         _fill_font(cell, GREEN_BG, GREEN)
-    elif value == "不適用":
+    elif value == "N/A":
         _fill_font(cell, SLATE_BG, SLATE)
 
 
 def _paint_issue(cell, value: str | None):
-    if value == "開放":
+    if value == "Open":
         _fill_font(cell, RED_BG, RED)
-    elif value == "跟進中":
+    elif value == "In progress":
         _fill_font(cell, AMBER_BG, AMBER)
-    elif value == "已關閉":
+    elif value == "Closed":
         _fill_font(cell, SLATE_BG, SLATE)
 
 
 def _paint_expiry(cell, value: str | None):
-    if value == "已過期":
+    if value == "Expired":
         _fill_font(cell, RED_BG, RED)
-    elif value == "30天內到期":
+    elif value == "Due in 30 days":
         _fill_font(cell, AMBER_BG, AMBER)
-    elif value == "90天內到期":
+    elif value == "Due in 90 days":
         _fill_font(cell, "FFF8E8", "8A6116")
-    elif value == "正常":
+    elif value == "Normal":
         _fill_font(cell, GREEN_BG, GREEN)
 
 
 def _paint_compare(cell, value: str | None):
-    if value == "本月新異常":
+    if value == "New this month":
         _fill_font(cell, RED_BG, RED)
-    elif value == "本月已恢復":
+    elif value == "Recovered":
         _fill_font(cell, GREEN_BG, GREEN)
-    elif value == "本月開始適用":
+    elif value == "Now in use":
         _fill_font(cell, "E8F1FB", NAVY)
-    elif value == "與上月不同":
+    elif value == "Different":
         _fill_font(cell, AMBER_BG, AMBER)
-    elif value == "與上月相同":
+    elif value == "Same as last month":
         _fill_font(cell, SLATE_BG, SLATE)
 
 
@@ -389,17 +389,17 @@ def _names(attachments) -> str:
 
 def _status_class(value: str | None) -> str:
     return {
-        "異常": "bad",
-        "開放": "bad",
-        "已過期": "bad",
-        "正常": "ok",
-        "已關閉": "ok",
-        "跟進中": "warn",
-        "30天內到期": "warn",
-        "90天內到期": "soon",
-        "不適用": "na",
-        "本月新異常": "bad",
-        "本月已恢復": "ok",
+        "Abnormal": "bad",
+        "Open": "bad",
+        "Expired": "bad",
+        "Normal": "ok",
+        "Closed": "ok",
+        "In progress": "warn",
+        "Due in 30 days": "warn",
+        "Due in 90 days": "soon",
+        "N/A": "na",
+        "New this month": "bad",
+        "Recovered": "ok",
     }.get(value or "", "")
 
 
@@ -411,9 +411,9 @@ def _pdf_images(view, upload_dir: Path, limit: int = 8):
             found.append((att, caption))
 
     for row in view["devices"]:
-        take(row["attachments"], f"設備 {row['device'].name}")
+        take(row["attachments"], f"Device {row['device'].name}")
     for row in view["items"]:
-        take(row["attachments"], f"檢查項 {row['item'].seq} {row['item'].name}")
+        take(row["attachments"], f"Item {row['item'].seq} {row['item'].name}")
     for row in view["issues"]:
         take(row["attachments"], row["issue"].code)
     images = []
@@ -534,7 +534,7 @@ def _pdf_html(view: dict, images: list[dict], skipped: list[str]) -> str:
     issue_rows = []
     for row in view["issues"]:
         issue, month = row["issue"], row["month"]
-        status = month.status if month else "未列入本月"
+        status = month.status if month else "Not on this month"
         observation = month.observation if month else ""
         action = month.action if month else issue.action
         issue_rows.append(
@@ -576,34 +576,34 @@ def _pdf_html(view: dict, images: list[dict], skipped: list[str]) -> str:
         )
     skipped_html = ""
     if skipped:
-        skipped_html = "<p class='note'>其餘截圖檔名：" + esc("、".join(skipped)) + "</p>"
+        skipped_html = "<p class='note'>Other screenshot files: " + esc(", ".join(skipped)) + "</p>"
     duration = "—" if check.duration_hours is None else f"{check.duration_hours:g}"
     return f"""
     <article>
       <header>
-        <p class="kicker">每月遠端健康檢查（VPN / AnyDesk）</p>
-        <h1>月度遠端健康檢查</h1>
+        <p class="kicker">Monthly remote health check (VPN / AnyDesk)</p>
+        <h1>Monthly remote health check</h1>
         <p class="meta">{esc(client.name)}　{esc(client.site)}　{check.year_month}</p>
       </header>
-      <section class="hero light-{esc(light)}">
+      <section class="hero light-{esc(light).split()[0]}">
         <div>
-          <span>整體燈號</span>
+          <span>Overall</span>
           <strong>{esc(light)}</strong>
         </div>
         <ul>
-          <li>檢查日期　{check.check_date.isoformat()}</li>
-          <li>工程師　{esc(check.engineer)}</li>
-          <li>連線方式　{esc(check.connection_method)}</li>
-          <li>檢查時長　{duration} 小時</li>
+          <li>Check date  {check.check_date.isoformat()}</li>
+          <li>Engineer  {esc(check.engineer)}</li>
+          <li>Connection  {esc(check.connection_method)}</li>
+          <li>Duration  {duration} h</li>
         </ul>
       </section>
       <p class="note">{esc(check.notes or "")}</p>
-      <p class="note">此檢查只反映檢查當下的狀態，是時點快照，不能取代 24 小時監控。剩餘日數相對檢查日期 {check.check_date.isoformat()}，不是匯出當天。</p>
-      <h2>本月摘要</h2>
+      <p class="note">This check records that moment only. It is not 24-hour monitoring. Days remaining use the check date {check.check_date.isoformat()}, not the export date.</p>
+      <h2>This month</h2>
       <table class="stats">
         <tr>
-          <th>檢查表異常</th><th>已填項數</th><th>設備異常</th><th>未關閉跟進</th>
-          <th>已過期</th><th>30天內</th><th>90天內</th>
+          <th>Abnormal items</th><th>Filled</th><th>Abnormal devices</th><th>Open follow-ups</th>
+          <th>Expired</th><th>Due in 30 days</th><th>Due in 90 days</th>
         </tr>
         <tr>
           <td>{counts["abnormal_items"]}</td><td>{counts["filled_items"]}</td>
@@ -611,42 +611,42 @@ def _pdf_html(view: dict, images: list[dict], skipped: list[str]) -> str:
           <td>{counts["expired"]}</td><td>{counts["within_30"]}</td><td>{counts["within_90"]}</td>
         </tr>
       </table>
-      <h2>設備清單</h2>
+      <h2>Devices</h2>
       <table>
         <tr>
-          <th>類型</th><th>名稱（型號 · 韌體 · 序號）</th><th>IP</th><th>保固/支援到期</th>
-          <th>上次檢查</th><th>本月狀態</th><th>異常摘要</th><th>跟進</th><th>首次發現</th><th>截圖</th>
+          <th>Type</th><th>Name (model, firmware, serial)</th><th>IP</th><th>Warranty / support</th>
+          <th>Last check</th><th>This month</th><th>Exception</th><th>Follow-up</th><th>First found</th><th>Screenshot</th>
         </tr>
-        {''.join(device_rows) or "<tr><td colspan='10'>沒有設備</td></tr>"}
+        {''.join(device_rows) or "<tr><td colspan='10'>No devices</td></tr>"}
       </table>
-      <h2>月度檢查表</h2>
+      <h2>Checklist</h2>
       <table>
         <tr>
-          <th>項次</th><th>檢查項目</th><th>本月結果</th><th>說明</th>
-          <th>上月結果</th><th>與上月比較</th><th>截圖</th>
+          <th>#</th><th>Item</th><th>This month</th><th>Notes</th>
+          <th>Last month</th><th>Compared with last month</th><th>Screenshot</th>
         </tr>
         {''.join(item_rows)}
       </table>
-      <h2>異常與跟進</h2>
+      <h2>Issues</h2>
       <table>
         <tr>
-          <th>編號</th><th>首次發現</th><th>來源</th><th>相關</th><th>摘要</th>
-          <th>本月狀態</th><th>本月觀察</th><th>跟進行動</th><th>關閉日期</th><th>截圖</th>
+          <th>ID</th><th>First found</th><th>Source</th><th>Related</th><th>Summary</th>
+          <th>Status</th><th>Update</th><th>Action</th><th>Closed on</th><th>Screenshot</th>
         </tr>
-        {''.join(issue_rows) or "<tr><td colspan='10'>沒有問題</td></tr>"}
+        {''.join(issue_rows) or "<tr><td colspan='10'>No issues</td></tr>"}
       </table>
-      <h2>到期預警</h2>
-      <p class="note">剩餘日數相對檢查日期 {check.check_date.isoformat()}。</p>
+      <h2>Expiries</h2>
+      <p class="note">Days left are counted from {check.check_date.isoformat()}.</p>
       <table>
         <tr>
-          <th>類型</th><th>項目名稱</th><th>相關設備</th><th>到期日</th><th>剩餘日數</th><th>預警狀態</th><th>備註</th>
+          <th>Type</th><th>Name</th><th>Related device</th><th>Expiry date</th><th>Days left</th><th>Status</th><th>Notes</th>
         </tr>
-        {''.join(expiry_rows) or "<tr><td colspan='7'>沒有到期項目</td></tr>"}
+        {''.join(expiry_rows) or "<tr><td colspan='7'>No expiries</td></tr>"}
       </table>
-      <h2>截圖</h2>
-      <div class="shots">{''.join(figures) or "<p class='note'>本月沒有截圖。</p>"}</div>
+      <h2>Screenshots</h2>
+      <div class="shots">{''.join(figures) or "<p class='note'>No screenshots this month.</p>"}</div>
       {skipped_html}
-      <footer>內部工具，目前不設登入。只反映檢查當下，不是即時監控。</footer>
+      <footer>Internal tool with no login. A point-in-time check, not live monitoring.</footer>
     </article>
     <style>
       @page {{
@@ -667,13 +667,13 @@ def _pdf_html(view: dict, images: list[dict], skipped: list[str]) -> str:
       .hero span {{ display: block; color: #5c6b7a; font-size: 8.5pt; }}
       .hero strong {{ font-size: 16pt; }}
       .hero ul {{ margin: 0; padding: 0; list-style: none; }}
-      .light-紅 {{ border-left-color: #b42318; }}
-      .light-紅 strong {{ color: #b42318; }}
-      .light-黃 {{ border-left-color: #b54708; }}
-      .light-黃 strong {{ color: #b54708; }}
-      .light-綠 {{ border-left-color: #067647; }}
-      .light-綠 strong {{ color: #067647; }}
-      .light-未完成 {{ border-left-color: #475467; }}
+      .light-Red {{ border-left-color: #b42318; }}
+      .light-Red strong {{ color: #b42318; }}
+      .light-Amber {{ border-left-color: #b54708; }}
+      .light-Amber strong {{ color: #b54708; }}
+      .light-Green {{ border-left-color: #067647; }}
+      .light-Green strong {{ color: #067647; }}
+      .light-Not {{ border-left-color: #475467; }}
       .note {{ color: #3d4b5c; margin: 6px 0; }}
       table {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; page-break-inside: auto; }}
       th, td {{ border: 1px solid #d5dee8; padding: 2px 3px; vertical-align: top; }}

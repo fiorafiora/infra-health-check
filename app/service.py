@@ -53,7 +53,7 @@ def parse_date(value) -> date | None:
     try:
         return date.fromisoformat(text[:10])
     except ValueError as exc:
-        raise FormError("日期格式須為 YYYY-MM-DD") from exc
+        raise FormError("Use a date in YYYY-MM-DD format.") from exc
 
 
 def parse_hours(value) -> float | None:
@@ -63,16 +63,16 @@ def parse_hours(value) -> float | None:
     try:
         number = float(text)
     except ValueError as exc:
-        raise FormError("檢查時長須為數字（小時）") from exc
+        raise FormError("Duration must be a number of hours.") from exc
     if number < 0 or number > 72:
-        raise FormError("檢查時長請填 0 到 72 小時")
+        raise FormError("Duration must be between 0 and 72 hours.")
     return number
 
 
 def require_choice(value, choices: tuple[str, ...], label: str) -> str:
     text = clean(value, 40)
     if text not in choices:
-        raise FormError(f"請選擇{label}")
+        raise FormError(f"Choose a valid {label}.")
     return text
 
 
@@ -81,7 +81,7 @@ def optional_choice(value, choices: tuple[str, ...]) -> str | None:
     if text is None:
         return None
     if text not in choices:
-        raise FormError("選項不正確")
+        raise FormError("That choice is not valid.")
     return text
 
 
@@ -132,14 +132,14 @@ def start_check(
 ) -> Check:
     engineer = clean(engineer, 100) or ""
     if not engineer:
-        raise FormError("請填寫工程師")
-    connection_method = require_choice(connection_method, CONNECTION_METHODS, "連線方式")
+        raise FormError("Enter the engineer.")
+    connection_method = require_choice(connection_method, CONNECTION_METHODS, "connection")
     ym = year_month(check_date)
     exists = db.scalar(
         select(Check.id).where(Check.client_id == client.id, Check.year_month == ym)
     )
     if exists:
-        raise FormError("這個月份已經有檢查紀錄")
+        raise FormError("This month already has a check.")
 
     prev = db.scalar(
         select(Check)
@@ -245,10 +245,10 @@ def add_device(
     warranty_expiry: date | None,
     added_on: date,
 ) -> Device:
-    device_type = require_choice(device_type, DEVICE_TYPES, "設備類型")
+    device_type = require_choice(device_type, DEVICE_TYPES, "device type")
     name = clean(name, 200)
     if not name:
-        raise FormError("請填寫設備名稱")
+        raise FormError("Enter a device name.")
     current_max = db.scalar(
         select(func.max(Device.sort_order)).where(Device.client_id == client.id)
     )
@@ -285,7 +285,7 @@ def add_device(
 def add_custom_item(db: Session, client: Client, name: str, from_check: Check | None) -> CustomCheckItem:
     name = clean(name, 300)
     if not name:
-        raise FormError("請填寫其他項目名稱")
+        raise FormError("Enter a name for the extra item.")
     current_max = db.scalar(
         select(func.max(CustomCheckItem.sort_order)).where(
             CustomCheckItem.client_id == client.id
@@ -345,28 +345,28 @@ def add_custom_item(db: Session, client: Client, name: str, from_check: Check | 
 
 def copy_warranty(db: Session, client: Client, device: Device) -> None:
     if device.client_id != client.id:
-        raise FormError("設備不屬於此客戶")
+        raise FormError("That device does not belong to this client.")
     if device.warranty_expiry is None:
-        raise FormError("此設備沒有保固／支援到期日，無法抄入")
+        raise FormError("This device has no warranty or support date to copy.")
     existing = db.scalar(
         select(Expiry.id).where(
             Expiry.client_id == client.id,
             Expiry.device_id == device.id,
-            Expiry.kind == "保固",
+            Expiry.kind == "Warranty",
             Expiry.expiry_date == device.warranty_expiry,
         )
     )
     if existing:
-        raise FormError("相同的保固已在到期預警")
+        raise FormError("That warranty is already on the expiry list.")
     db.add(
         Expiry(
             client_id=client.id,
-            kind="保固",
-            name=f"{device.name} 保固",
+            kind="Warranty",
+            name=f"{device.name} warranty",
             device_id=device.id,
             related_label=device.name,
             expiry_date=device.warranty_expiry,
-            notes="由設備清單的保固／支援到期日抄入",
+            notes="Copied from the device warranty / support date.",
             copied_from_device=True,
         )
     )
@@ -409,9 +409,9 @@ def build_check_view(db: Session, check: Check) -> dict:
     abnormal_items = 0
     filled_items = 0
     for item in items:
-        if item.result == "異常":
+        if item.result == "Abnormal":
             abnormal_items += 1
-        if item.result in ("正常", "異常", "不適用"):
+        if item.result in ("Normal", "Abnormal", "N/A"):
             filled_items += 1
         item_views.append(
             {
@@ -444,7 +444,7 @@ def build_check_view(db: Session, check: Check) -> dict:
     abnormal_devices = 0
     for device in devices:
         month = months[device.id]
-        if month.status == "異常":
+        if month.status == "Abnormal":
             abnormal_devices += 1
         previous = prev_months.get(device.id)
         device_views.append(
@@ -490,11 +490,11 @@ def build_check_view(db: Session, check: Check) -> dict:
     expired = within_30 = within_90 = 0
     for expiry in expiries:
         days, status = expiry_state(expiry.expiry_date, check.check_date)
-        if status == "已過期":
+        if status == "Expired":
             expired += 1
-        elif status == "30天內到期":
+        elif status == "Due in 30 days":
             within_30 += 1
-        elif status == "90天內到期":
+        elif status == "Due in 90 days":
             within_90 += 1
         related = ""
         if expiry.device_id:
@@ -557,11 +557,11 @@ def _attachment_map(db: Session, client_id: int) -> dict[tuple[str, int], list[A
 def save_check_cover(db: Session, check: Check, form) -> None:
     check_date = parse_date(form.get("check_date"))
     if check_date is None:
-        raise FormError("請填寫檢查日期")
+        raise FormError("Enter the check date.")
     engineer = clean(form.get("engineer"), 100)
     if not engineer:
-        raise FormError("請填寫工程師")
-    method = require_choice(form.get("connection_method"), CONNECTION_METHODS, "連線方式")
+        raise FormError("Enter the engineer.")
+    method = require_choice(form.get("connection_method"), CONNECTION_METHODS, "connection")
     ym = year_month(check_date)
     clash = db.scalar(
         select(Check.id).where(
@@ -571,7 +571,7 @@ def save_check_cover(db: Session, check: Check, form) -> None:
         )
     )
     if clash:
-        raise FormError("這個月份已經有另一份檢查")
+        raise FormError("Another check already exists for this month.")
     check.check_date = check_date
     check.year_month = ym
     check.engineer = engineer
@@ -614,10 +614,10 @@ def save_check_items(db: Session, check: Check, form) -> None:
 
 
 def update_device(db: Session, device: Device, form) -> None:
-    device.device_type = require_choice(form.get("device_type"), DEVICE_TYPES, "設備類型")
+    device.device_type = require_choice(form.get("device_type"), DEVICE_TYPES, "device type")
     name = clean(form.get("name"), 200)
     if not name:
-        raise FormError("請填寫設備名稱")
+        raise FormError("Enter a device name.")
     device.name = name
     device.model = clean(form.get("model"), 200)
     device.serial_no = clean(form.get("serial_no"), 200)
@@ -629,27 +629,27 @@ def update_device(db: Session, device: Device, form) -> None:
         try:
             device.sort_order = int(sort_text)
         except ValueError as exc:
-            raise FormError("排序須為整數") from exc
+            raise FormError("Sort order must be a whole number.") from exc
 
 
 def create_issue(db: Session, client: Client, check: Check | None, form) -> Issue:
     summary = clean(form.get("summary"))
     if not summary:
-        raise FormError("請填寫問題摘要")
+        raise FormError("Enter an issue summary.")
     found = parse_date(form.get("first_found_date"))
     if found is None:
-        raise FormError("請填寫首次發現日期")
-    source = require_choice(form.get("source"), ISSUE_SOURCES, "來源")
-    status = require_choice(form.get("status"), ISSUE_STATUSES, "狀態")
+        raise FormError("Enter the date first found.")
+    source = require_choice(form.get("source"), ISSUE_SOURCES, "source")
+    status = require_choice(form.get("status"), ISSUE_STATUSES, "status")
     device_id = _optional_device_id(db, client.id, form.get("device_id"))
     related = clean(form.get("related_label"), 300)
     if related is None and device_id:
         device = db.get(Device, device_id)
         related = device.name if device else None
     close_date = parse_date(form.get("close_date"))
-    if status == "已關閉" and close_date is None:
+    if status == "Closed" and close_date is None:
         close_date = check.check_date if check else date.today()
-    if status != "已關閉":
+    if status != "Closed":
         close_date = None
     issue = Issue(
         client_id=client.id,
@@ -681,13 +681,13 @@ def create_issue(db: Session, client: Client, check: Check | None, form) -> Issu
 def update_issue(db: Session, issue: Issue, check: Check | None, form) -> None:
     summary = clean(form.get("summary"))
     if not summary:
-        raise FormError("請填寫問題摘要")
+        raise FormError("Enter an issue summary.")
     found = parse_date(form.get("first_found_date"))
     if found is None:
-        raise FormError("請填寫首次發現日期")
+        raise FormError("Enter the date first found.")
     issue.summary = summary
     issue.first_found_date = found
-    issue.source = require_choice(form.get("source"), ISSUE_SOURCES, "來源")
+    issue.source = require_choice(form.get("source"), ISSUE_SOURCES, "source")
     issue.device_id = _optional_device_id(db, issue.client_id, form.get("device_id"))
     related = clean(form.get("related_label"), 300)
     if related is None and issue.device_id:
@@ -695,10 +695,10 @@ def update_issue(db: Session, issue: Issue, check: Check | None, form) -> None:
         related = device.name if device else None
     issue.related_label = related
     close_date = parse_date(form.get("close_date"))
-    month_status = require_choice(form.get("status"), ISSUE_STATUSES, "狀態")
-    if month_status == "已關閉" and close_date is None:
+    month_status = require_choice(form.get("status"), ISSUE_STATUSES, "status")
+    if month_status == "Closed" and close_date is None:
         close_date = check.check_date if check else date.today()
-    if month_status != "已關閉":
+    if month_status != "Closed":
         close_date = None
     issue.close_date = close_date
     observation = clean(form.get("observation"))
@@ -727,11 +727,11 @@ def update_issue(db: Session, issue: Issue, check: Check | None, form) -> None:
 def create_expiry(db: Session, client: Client, form) -> Expiry:
     name = clean(form.get("name"), 300)
     if not name:
-        raise FormError("請填寫項目名稱")
+        raise FormError("Enter an item name.")
     expiry_date = parse_date(form.get("expiry_date"))
     if expiry_date is None:
-        raise FormError("請填寫到期日")
-    kind = require_choice(form.get("kind"), EXPIRY_KINDS, "類型")
+        raise FormError("Enter the expiry date.")
+    kind = require_choice(form.get("kind"), EXPIRY_KINDS, "type")
     device_id = _optional_device_id(db, client.id, form.get("device_id"))
     related = clean(form.get("related_label"), 300)
     if related is None and device_id:
@@ -754,13 +754,13 @@ def create_expiry(db: Session, client: Client, form) -> Expiry:
 def update_expiry(db: Session, expiry: Expiry, form) -> None:
     name = clean(form.get("name"), 300)
     if not name:
-        raise FormError("請填寫項目名稱")
+        raise FormError("Enter an item name.")
     expiry_date = parse_date(form.get("expiry_date"))
     if expiry_date is None:
-        raise FormError("請填寫到期日")
+        raise FormError("Enter the expiry date.")
     expiry.name = name
     expiry.expiry_date = expiry_date
-    expiry.kind = require_choice(form.get("kind"), EXPIRY_KINDS, "類型")
+    expiry.kind = require_choice(form.get("kind"), EXPIRY_KINDS, "type")
     expiry.device_id = _optional_device_id(db, expiry.client_id, form.get("device_id"))
     related = clean(form.get("related_label"), 300)
     if related is None and expiry.device_id:
@@ -777,10 +777,10 @@ def _optional_device_id(db: Session, client_id: int, value) -> int | None:
     try:
         device_id = int(text)
     except ValueError as exc:
-        raise FormError("相關設備不正確") from exc
+        raise FormError("The related device is not valid.") from exc
     device = db.get(Device, device_id)
     if device is None or device.client_id != client_id:
-        raise FormError("相關設備不屬於此客戶")
+        raise FormError("That device does not belong to this client.")
     return device_id
 
 

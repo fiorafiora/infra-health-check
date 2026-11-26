@@ -1,1 +1,1 @@
-"""月度遠端健康檢查 web app."""
+"""Monthly remote health-check web app."""

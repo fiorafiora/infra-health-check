@@ -30,17 +30,17 @@ def sniff_mime(data: bytes) -> str | None:
 
 def validate_image(data: bytes) -> str:
     if not data:
-        raise ValueError("檔案是空的")
+        raise ValueError("The file is empty.")
     if len(data) > MAX_UPLOAD_BYTES:
-        raise ValueError("檔案超過 5 MB")
+        raise ValueError("The file is larger than 5 MB.")
     mime = sniff_mime(data)
     if mime is None:
-        raise ValueError("只接受 jpg、png 或 webp")
+        raise ValueError("Only jpg, png, and webp files are accepted.")
     try:
         with Image.open(BytesIO(data)) as image:
             image.verify()
     except (UnidentifiedImageError, OSError, ValueError) as exc:
-        raise ValueError("圖片無法讀取") from exc
+        raise ValueError("The image could not be read.") from exc
     return mime
 
 
@@ -54,7 +54,7 @@ def safe_original_name(name: str | None) -> str:
 def attachment_path(upload_dir: Path, stored_name: str) -> Path:
     path = (upload_dir / stored_name).resolve()
     if path.parent != upload_dir.resolve():
-        raise ValueError("不正確的檔案路徑")
+        raise ValueError("That file path is not valid.")
     return path
 
 
@@ -89,7 +89,7 @@ def save_attachment(
     mime: str,
 ) -> Attachment:
     if count_attachments(db, target_type, target_id) >= MAX_ATTACHMENTS_PER_TARGET:
-        raise ValueError(f"同一項目最多 {MAX_ATTACHMENTS_PER_TARGET} 張截圖")
+        raise ValueError(f"Each item can have at most {MAX_ATTACHMENTS_PER_TARGET} screenshots.")
     stored = f"{uuid.uuid4().hex}{MIME_EXT[mime]}"
     attachment_path(upload_dir, stored).write_bytes(data)
     row = Attachment(

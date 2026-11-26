@@ -11,7 +11,7 @@ document.addEventListener("click", (event) => {
     const box = document.getElementById("lightbox");
     const image = box.querySelector("img");
     image.src = shot.getAttribute("data-full");
-    image.alt = shot.querySelector("img")?.alt || "截圖";
+    image.alt = shot.querySelector("img")?.alt || "Screenshot";
     box.hidden = false;
     return;
   }
@@ -39,7 +39,7 @@ document.addEventListener("change", (event) => {
   const label = input.closest("form")?.querySelector(".file-name");
   if (!label) return;
   const names = [...input.files].map((file) => file.name);
-  label.textContent = names.length ? names.join("、") : "未選擇檔案";
+  label.textContent = names.length ? names.join(", ") : "No file selected";
 });
 
 const clientFilter = document.getElementById("client-filter");
@@ -61,8 +61,8 @@ document.querySelectorAll("[data-issue-filter]").forEach((button) => {
     });
     document.querySelectorAll("[data-issue-status]").forEach((row) => {
       const status = row.dataset.issueStatus;
-      const open = status === "開放" || status === "跟進中";
-      const visible = mode === "all" || (mode === "open" && open) || (mode === "closed" && status === "已關閉");
+      const open = status === "Open" || status === "In progress";
+      const visible = mode === "all" || (mode === "open" && open) || (mode === "closed" && status === "Closed");
       row.hidden = !visible;
     });
   });

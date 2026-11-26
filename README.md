@@ -1,118 +1,112 @@
-# 月度遠端健康檢查
+# Monthly remote health check
 
-給香港網絡工程師在自己電腦上使用的內部工具，用來逐步取代「月度遠端健康檢查」Excel 範本。同事各自用 VPN 或 AnyDesk 連進客戶現場後，在這個網頁填寫當月檢查。
+An internal web app for a Hong Kong network engineer and colleagues. Each person VPNs or uses AnyDesk into a client site, then records that month’s check here.
 
-這一版**沒有登入**。請只放在自己的電腦、內網，或只經 VPN 才能到達的 Ubuntu 虛擬機。不要做到公開互聯網，也不要做 port forward。
+There is **no login**. Keep it on your own PC, the office LAN, or an Ubuntu VM that is only reachable over VPN. Do not publish it on the public internet.
 
-檢查結果是**時點快照**：它只記錄你檢查當下看到的狀態，兩次月檢之間沒有即時告警，不能當成 24 小時監控。
+A check is a **point-in-time snapshot**. Nothing alerts you between monthly visits, and this is not 24-hour monitoring.
 
-## 用 Docker 啟動
+## Run with Docker
 
-需要已安裝 Docker Engine 與 Docker Compose v2。建置映像時要能下載套件；建好之後，日常開關不需要再連外網。
+You need Docker Engine and Docker Compose v2. The image build downloads packages. After that, start and stop do not need the internet.
 
 ```bash
 docker compose up -d --build
 ```
 
-瀏覽器打開：
-
-**http://127.0.0.1:8080**
-
-在虛擬機上則是 `http://<虛擬機內網 IP>:8080`。服務聽 `0.0.0.0:8080`，主機埠同樣是 **8080**。
-
-常用指令：
+Open **http://127.0.0.1:8080**. On a VM, use `http://<VM LAN IP>:8080`. The app listens on `0.0.0.0:8080`.
 
 ```bash
-docker compose logs -f     # 看日誌
-docker compose stop        # 停止，資料保留
-docker compose start       # 再次啟動
-docker compose down        # 停掉並移除容器，named volume 仍在
-docker compose down -v     # 連資料一併刪除（檢查紀錄與截圖都沒了）
+docker compose logs -f     # logs
+docker compose stop        # stop, keep data
+docker compose start       # start again
+docker compose down        # remove the container, keep the volume
+docker compose down -v     # delete the database and screenshots too
 ```
 
-更新程式前請先備份 `/data`（見下方）。這一版沒有資料庫遷移；結構有變時，舊的 SQLite 檔不一定能直接沿用。
+Back up `/data` before upgrading. This version has no database migration. An older SQLite file may not match a newer build.
 
-## 資料放在哪
+## Where the data lives
 
-Compose 使用 named volume `healthcheck-data`，掛在容器內的 `/data`：
+The Compose volume `healthcheck-data` is mounted at `/data` in the container:
 
-- `/data/healthcheck.db`：SQLite 資料庫
-- `/data/uploads/`：截圖（jpg / png / webp），不進 git
+- `/data/healthcheck.db` — SQLite database
+- `/data/uploads/` — screenshots (jpg, png, webp), not stored in git
 
-容器時區是 `Asia/Hong_Kong`。到期剩餘日數**不是**用今天計算，而是用該次檢查的「檢查日期」，畫面上會標出來。
+The container timezone is `Asia/Hong_Kong`. Days remaining are counted from the **check date**, not from today. The page says so.
 
-想改放在虛擬機的某個目錄，可把 `docker-compose.yml` 的 volume 改成：
+To keep files on a directory of your own, change the volume in `docker-compose.yml`:
 
 ```yaml
 volumes:
   - /srv/healthcheck/data:/data
 ```
 
-備份可以先 `docker compose stop`，再複製該目錄或 volume。
+Stop the stack, then copy that directory or volume to back it up.
 
-## 部署到內網 Ubuntu 虛擬機
+## Deploy on an internal Ubuntu VM
 
-1. 安裝 Docker Engine 與 Compose plugin（用發行版的說明即可）。
-2. 把這個專案放到虛擬機，例如 `git clone` 後進入目錄，或直接複製整個資料夾。這是私人倉庫，clone 需要有權限。
-3. 在專案目錄執行 `docker compose up -d --build`。
-4. 只讓內網或 VPN 連到 8080。例如用 ufw，且**不要**對公網開放：
+1. Install Docker Engine and the Compose plugin.
+2. Copy this project onto the VM (`git clone` needs access to this private repo, or copy the folder).
+3. From the project directory, run `docker compose up -d --build`.
+4. Allow port 8080 only from the LAN or VPN. Do not open it to the public internet. For example:
 
    ```bash
    sudo ufw allow from 10.0.0.0/8 to any port 8080 proto tcp
    ```
 
-   網段請改成你們實際的內網或 VPN 位址。
-5. 工程師在已連上 VPN 的電腦開 `http://<虛擬機 IP>:8080`。
+   Use your real LAN or VPN range.
+5. From a PC already on the VPN, open `http://<VM IP>:8080`.
 
-這一版沒有 HTTPS、SMTP、SSO。若以後要在前面加內網反向代理，再另外處理憑證；應用本身維持聽 8080。
+This version has no HTTPS, SMTP, or SSO. If you later put a reverse proxy in front, terminate TLS there. The app itself stays on port 8080.
 
-## 示範資料
+## Example data
 
-第一次啟動、資料庫是空的時候，會寫入三筆標成「範例」的客戶。位址都在文件用的 `192.0.2.0/24`，不是真實設備。
+The first start, on an empty database, loads three example clients. Addresses are in the documentation range `192.0.2.0/24`.
 
-| 客戶 | 你應該看到 |
+| Client | What you should see |
 | --- | --- |
-| 客戶A／站點-範例 | 2026-10 與 2026-11。十一月燈號為紅：AP-01 離線（ISS-001），NVR 磁碟為本月新異常，備份為本月已恢復 |
-| 客戶B／總部-範例 | 十月綠、十一月黃（防火牆授權進入 90 天，檢查結果與上月相同） |
-| 客戶C／倉庫-範例 | 只填了封面，燈號為未完成 |
+| Client A / Example site | October and November 2026. November is red: AP-01 offline (ISS-001), a new NVR disk fault, and a recovered backup |
+| Client B / Head office | October green, November amber (firewall licence enters the 90-day window; the checklist matches last month) |
+| Client C / Warehouse | Cover only, so the light is Not started |
 
-正式使用前請刪掉這些客戶。刪光之後重新啟動**不會**再自動種回去；要重來請 `docker compose down -v` 再啟動（所有正式資料也會刪除）。
+Delete them before real use. After they are gone, a restart does **not** load them again. To start over, run `docker compose down -v` and start again. That deletes real records too.
 
-## 和 Excel 範本對應的做法
+## What you can do
 
-- **多客戶**：每個客戶一個站點。裡面有設備、每月檢查、跨月問題、到期項目。
-- **設備清單**：類型為伺服器／交換器／防火牆／AP／NVR／其他。欄位有名稱、型號、序號、IP、韌體、保固／支援到期、上次檢查日期、本月狀態（正常／異常）、異常摘要、跟進事項、首次發現日期、截圖。
-- **開始一個月**：填檢查日期、工程師、連線方式（VPN／AnyDesk／其他）、時長、整體備註。同一客戶同一個月只有一份。
-- **整體燈號**（紅／黃／綠／未完成）與範本封面公式相同：
-  - 紅：檢查表或設備有「異常」，或有已過期項目
-  - 黃：沒有紅燈，但有未關閉跟進（開放／跟進中），或 30／90 天內到期
-  - 綠：已填寫檢查結果，且沒有上述紅／黃情況
-  - 未完成：檢查表還沒填，而且沒有異常、未關閉跟進或到期預警
-  - 只標成「正常」的到期項目，不會單獨讓燈號變成綠
-- **月度檢查表**順序固定，不能改項次：
-  1. 先查中斷：Ping 核心／閘道、Ping 伺服器、Ping NVR、控制器 AP 離線清單
-  2. 業務關鍵：NVR／伺服器硬碟或 RAID 狀態、磁碟空間、最近一次成功備份、防火牆／授權到期
-  3. 建議稍後（可選）：日誌檢視、韌體檢查
-  4. 之後可加此站自己的其他項目
-- 每一項有本月結果（正常／異常／不適用）、備註、上月結果、自動比較（與上月相同／本月新異常／本月已恢復／本月開始適用／與上月不同）、截圖。
-- **異常與跟進**跨月保留。編號像 ISS-001。重複問題沿用原編號與首次發現日期，不要另開一筆。狀態為開放／跟進中／已關閉。
-- **到期預警**類型為授權／保固／SSL憑證／支援合約／其他。剩餘日數相對該次檢查日期。狀態為已過期／30天內到期／90天內到期／正常。預設不會從設備清單自動帶入；需要時用「從設備保固抄入」。
-- **截圖**可掛在設備本月狀態、檢查項或問題上。有縮圖，點開可看原圖。單檔上限 5 MB，每項最多 8 張。
-- **匯出**一份客戶加一個月的 PDF 與 Excel，內容包含封面摘要、設備、檢查表（含與上月比較）、問題、到期項目。PDF 會嵌入最多 8 張縮圖，其餘只列檔名。Excel 不嵌圖，只寫檔名，方便跟舊檔對欄位。
+- Several clients. Each has devices, one check per month, issues that carry across months, and expiries.
+- Device types: Server, Switch, Firewall, AP, NVR, Other. Fields: name, model, serial, IP, firmware, warranty / support expiry, last check, this month (Normal / Abnormal), exception, follow-up, date first found, screenshots.
+- Start a month with check date, engineer, connection (VPN / AnyDesk / Other), duration, and notes.
+- Overall light:
+  - **Red** — a checklist item or device is Abnormal, or something is Expired
+  - **Amber** — no red condition, but a follow-up is Open or In progress, or something is due within 30 or 90 days
+  - **Green** — the checklist is filled in, and none of the above apply
+  - **Not started** — the checklist is empty, and there is no abnormal item, open follow-up, or expiry warning
+  - A Normal expiry on its own does not turn the light green
+- Checklist order:
+  1. Outage first: ping core / gateway, ping servers, ping NVR, controller AP offline list
+  2. Business critical: NVR / server disk or RAID, disk space, last successful backup, firewall / licence expiry
+  3. Later, optional: log review, firmware check
+  4. Extra items for that site
+- Each item has this month (Normal / Abnormal / N/A), notes, last month, an automatic comparison, and screenshots.
+- Issues keep an ID such as ISS-001 across months. Status is Open, In progress, or Closed.
+- Expiries: Licence, Warranty, SSL certificate, Support contract, or Other. Days left use the check date. Status is Expired, Due in 30 days, Due in 90 days, or Normal. Copy a device warranty in only when you choose to.
+- Screenshots attach to a device’s month, a checklist item, or an issue. Thumbnails open to the full image. 5 MB each, 8 per item.
+- Export one client and month as PDF and Excel. The PDF embeds up to 8 thumbnails. The Excel file lists file names.
 
-## 第一版沒有的東西
+## Not in this version
 
-- 登入、帳號、權限
-- 公開 HTTPS、SMTP、SSO
-- 即時監控或兩次月檢之間的告警
-- 把設備保固自動同步進到期預警（只能手動抄入）
-- 資料庫遷移工具
-- 在兩個已存在的月份中間再插入一個月時，不會自動改寫較新那個月的「上月結果」。請按時間先後開月份
-- 容器行程以 root 執行。埠只應留在內網
+- Login, accounts, or permissions
+- Public HTTPS, SMTP, or SSO
+- Live monitoring or alerts between monthly visits
+- Automatic copy of every device warranty into the expiry list
+- A database migration tool
+- Inserting a month between two existing months does not rewrite the newer month’s “last month” column. Create months in date order
+- The container process runs as root. Keep port 8080 on the internal network
 
-## 本機開發（可選）
+## Local development
 
-日常使用請走 Docker。若要在本機改程式：
+Docker is the way to run it. To change the code on your machine:
 
 ```bash
 python3 -m venv .venv
@@ -122,4 +116,4 @@ DATA_DIR=./data uvicorn app.main:app --host 0.0.0.0 --port 8080
 pytest
 ```
 
-PDF 的中文需要系統有 Noto CJK（Docker 映像已含 `fonts-noto-cjk`）。介面字型是專案裡的 Noto Sans TC，不靠執行時的外網。
+The page uses Noto Sans TC so Chinese notes still render. PDF text uses Noto CJK from the image (`fonts-noto-cjk`).

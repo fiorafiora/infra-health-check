@@ -27,16 +27,16 @@
   <input type="hidden" name="next" value="{{ next }}">
   <label class="file-pick">
     <input type="file" name="files" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" multiple>
-    <span>選擇截圖</span>
+    <span>Choose image</span>
   </label>
-  <span class="file-name">未選擇檔案</span>
-  <button class="btn small" type="submit">上傳</button>
+  <span class="file-name">No file selected</span>
+  <button class="btn small" type="submit">Upload</button>
 </form>
 {% endmacro %}
 
 {% macro delete_shot(file, next) %}
 <form method="post" action="/attachments/{{ file.id }}/delete">
   <input type="hidden" name="next" value="{{ next }}">
-  <button class="link danger" type="submit" data-confirm="刪除截圖「{{ file.original_name }}」？">刪除</button>
+  <button class="link danger" type="submit" data-confirm="Delete screenshot “{{ file.original_name }}”?">Delete</button>
 </form>
 {% endmacro %}

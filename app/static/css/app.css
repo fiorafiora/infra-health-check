@@ -172,27 +172,27 @@ section[id] { scroll-margin-top: 58px; }
   white-space: nowrap;
 }
 .tag { background: #eef1f4; color: var(--idle); }
-.light-紅, .status-異常, .status-已過期, .status-開放,
-.cmp[data-compare="本月新異常"] { background: var(--bad-bg); color: var(--bad); }
-.light-黃, .status-跟進中, .status-30天內到期,
-.cmp[data-compare="與上月不同"] { background: var(--warn-bg); color: var(--warn); }
-.light-綠, .status-正常, .status-已關閉,
-.cmp[data-compare="本月已恢復"] { background: var(--ok-bg); color: var(--ok); }
-.light-未完成, .status-不適用, .cmp[data-compare="與上月相同"] { background: var(--idle-bg); color: var(--idle); }
-.status-90天內到期 { background: #fff4d6; color: #8a6116; }
-.cmp[data-compare="本月開始適用"] { background: var(--info-bg); color: var(--info); }
+.light[data-light="Red"], .status[data-status="Abnormal"], .status[data-status="Expired"], .status[data-status="Open"],
+.cmp[data-compare="New this month"] { background: var(--bad-bg); color: var(--bad); }
+.light[data-light="Amber"], .status[data-status="In progress"], .status[data-status="Due in 30 days"],
+.cmp[data-compare="Different"] { background: var(--warn-bg); color: var(--warn); }
+.light[data-light="Green"], .status[data-status="Normal"], .status[data-status="Closed"],
+.cmp[data-compare="Recovered"] { background: var(--ok-bg); color: var(--ok); }
+.light[data-light="Not started"], .status[data-status="N/A"], .cmp[data-compare="Same as last month"] { background: var(--idle-bg); color: var(--idle); }
+.status[data-status="Due in 90 days"] { background: #fff4d6; color: #8a6116; }
+.cmp[data-compare="Now in use"] { background: var(--info-bg); color: var(--info); }
 
 .hero-card { border-top: 6px solid var(--idle); }
-.hero-card.light-紅 { border-top-color: var(--bad); }
-.hero-card.light-黃 { border-top-color: #d4a017; }
-.hero-card.light-綠 { border-top-color: var(--ok); }
-.hero-card.light-未完成 { border-top-color: var(--idle); }
+.hero-card[data-light="Red"] { border-top-color: var(--bad); }
+.hero-card[data-light="Amber"] { border-top-color: #d4a017; }
+.hero-card[data-light="Green"] { border-top-color: var(--ok); }
+.hero-card[data-light="Not started"] { border-top-color: var(--idle); }
 .hero-top { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
 .hero-light { margin: 0; font-size: 42px; line-height: 1.05; }
-.hero-card.light-紅 .hero-light { color: var(--bad); }
-.hero-card.light-黃 .hero-light { color: var(--warn); }
-.hero-card.light-綠 .hero-light { color: var(--ok); }
-.hero-card.light-未完成 .hero-light { color: var(--idle); }
+.hero-card[data-light="Red"] .hero-light { color: var(--bad); }
+.hero-card[data-light="Amber"] .hero-light { color: var(--warn); }
+.hero-card[data-light="Green"] .hero-light { color: var(--ok); }
+.hero-card[data-light="Not started"] .hero-light { color: var(--idle); }
 .exports { display: flex; gap: 8px; flex-wrap: wrap; }
 .stats {
   list-style: none;
@@ -271,7 +271,7 @@ table { border-collapse: collapse; }
   font-size: 13px;
 }
 .grid { width: 100%; min-width: 0; font-size: 13.5px; }
-.grid.devices { min-width: 1080px; table-layout: fixed; }
+.grid.devices { min-width: 1180px; table-layout: fixed; }
 .grid.checks { min-width: 980px; }
 .grid.expiries { min-width: 980px; }
 .grid th { line-height: 1.3; vertical-align: bottom; }
@@ -279,7 +279,7 @@ table { border-collapse: collapse; }
 .c-name { width: 18%; }
 .c-ip { width: 11%; }
 .c-date { width: 118px; }
-.c-state { width: 88px; }
+.c-state { width: 132px; }
 .c-note { width: 14%; }
 .c-shot { width: 168px; }
 .sub { color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 2px; }

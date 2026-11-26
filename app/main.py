@@ -47,7 +47,7 @@ def create_app(data_dir: str | os.PathLike | None = None) -> FastAPI:
             db.close()
         yield
 
-    app = FastAPI(title="月度遠端健康檢查", lifespan=lifespan)
+    app = FastAPI(title="Monthly remote health check", lifespan=lifespan)
     app.state.Session = session_factory
     app.state.upload_dir = upload
     app.state.data_dir = data

@@ -11,7 +11,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.constants import (
+    CHECK_RESULTS,
     CONNECTION_METHODS,
+    DEVICE_STATUSES,
     DEVICE_TYPES,
     EXPIRY_KINDS,
     ISSUE_SOURCES,
@@ -81,8 +83,8 @@ templates.env.globals["CONNECTION_METHODS"] = CONNECTION_METHODS
 templates.env.globals["ISSUE_SOURCES"] = ISSUE_SOURCES
 templates.env.globals["ISSUE_STATUSES"] = ISSUE_STATUSES
 templates.env.globals["EXPIRY_KINDS"] = EXPIRY_KINDS
-templates.env.globals["DEVICE_RESULTS"] = ("正常", "異常")
-templates.env.globals["CHECK_RESULTS"] = ("正常", "異常", "不適用")
+templates.env.globals["DEVICE_RESULTS"] = DEVICE_STATUSES
+templates.env.globals["CHECK_RESULTS"] = CHECK_RESULTS
 
 
 def get_db(request: Request):
@@ -105,8 +107,8 @@ def render(request: Request, name: str, **context):
 
 def not_found() -> HTMLResponse:
     return HTMLResponse(
-        "<!doctype html><meta charset='utf-8'><title>找不到</title>"
-        "<p style='font-family:sans-serif'>找不到這個頁面。</p>",
+        "<!doctype html><meta charset='utf-8'><title>Not found</title>"
+        "<p style='font-family:sans-serif'>That page was not found.</p>",
         status_code=404,
     )
 
@@ -194,11 +196,11 @@ async def create_client(request: Request, db: Session = Depends(get_db)):
     name = clean(form.get("name"), 200)
     site = clean(form.get("site"), 200)
     if not name or not site:
-        return go("/", err="請填寫客戶名稱與站點")
+        return go("/", err="Enter a client name and a site.")
     client = Client(name=name, site=site, notes=clean(form.get("notes")), is_demo=False)
     db.add(client)
     db.commit()
-    return go(f"/clients/{client.id}", msg="已新增客戶")
+    return go(f"/clients/{client.id}", msg="Client added.")
 
 
 @router.get("/clients/{client_id}")
@@ -259,12 +261,12 @@ async def update_client(client_id: int, request: Request, db: Session = Depends(
     name = clean(form.get("name"), 200)
     site = clean(form.get("site"), 200)
     if not name or not site:
-        return go(f"/clients/{client.id}", err="請填寫客戶名稱與站點")
+        return go(f"/clients/{client.id}", err="Enter a client name and a site.")
     client.name = name
     client.site = site
     client.notes = clean(form.get("notes"))
     db.commit()
-    return go(client_url(client.id, _int_or_none(form.get("check_id"))), msg="已儲存客戶資料")
+    return go(client_url(client.id, _int_or_none(form.get("check_id"))), msg="Client saved.")
 
 
 @router.post("/clients/{client_id}/delete")
@@ -275,7 +277,7 @@ async def remove_client(client_id: int, request: Request, db: Session = Depends(
     delete_client_files(db, client, request.app.state.upload_dir)
     db.delete(client)
     db.commit()
-    return go("/", msg="已刪除客戶及其檢查紀錄")
+    return go("/", msg="Client and its records were deleted.")
 
 
 @router.post("/clients/{client_id}/checks")
@@ -287,7 +289,7 @@ async def create_check(client_id: int, request: Request, db: Session = Depends(g
     try:
         check_date = parse_date(form.get("check_date"))
         if check_date is None:
-            raise FormError("請填寫檢查日期")
+            raise FormError("Enter the check date.")
         check = start_check(
             db,
             client,
@@ -300,7 +302,7 @@ async def create_check(client_id: int, request: Request, db: Session = Depends(g
         db.commit()
     except FormError as exc:
         return go(f"/clients/{client.id}", err=str(exc))
-    return go(client_url(client.id, check.id), msg="已開始這個月份的檢查")
+    return go(client_url(client.id, check.id), msg="Monthly check started.")
 
 
 @router.post("/checks/{check_id}")
@@ -314,7 +316,7 @@ async def update_check(check_id: int, request: Request, db: Session = Depends(ge
         db.commit()
     except FormError as exc:
         return go(client_url(check.client_id, check.id), err=str(exc))
-    return go(client_url(check.client_id, check.id, "summary"), msg="已儲存封面")
+    return go(client_url(check.client_id, check.id, "summary"), msg="Cover saved.")
 
 
 @router.post("/checks/{check_id}/delete")
@@ -326,7 +328,7 @@ async def remove_check(check_id: int, request: Request, db: Session = Depends(ge
     delete_check_files(db, check, request.app.state.upload_dir)
     db.delete(check)
     db.commit()
-    return go(f"/clients/{client_id}", msg="已刪除這個月份")
+    return go(f"/clients/{client_id}", msg="That month was deleted.")
 
 
 @router.post("/checks/{check_id}/devices")
@@ -340,7 +342,7 @@ async def save_devices(check_id: int, request: Request, db: Session = Depends(ge
         db.commit()
     except FormError as exc:
         return go(client_url(check.client_id, check.id, "devices"), err=str(exc))
-    return go(client_url(check.client_id, check.id, "devices"), msg="已儲存設備本月狀態")
+    return go(client_url(check.client_id, check.id, "devices"), msg="Device status saved.")
 
 
 @router.post("/clients/{client_id}/devices")
@@ -367,7 +369,7 @@ async def create_device(client_id: int, request: Request, db: Session = Depends(
         db.commit()
     except FormError as exc:
         return go(client_url(client.id, check_id, "devices"), err=str(exc))
-    return go(client_url(client.id, check_id, "devices"), msg="已新增設備")
+    return go(client_url(client.id, check_id, "devices"), msg="Device added.")
 
 
 @router.post("/devices/{device_id}")
@@ -382,7 +384,7 @@ async def edit_device(device_id: int, request: Request, db: Session = Depends(ge
         db.commit()
     except FormError as exc:
         return go(client_url(device.client_id, check_id, "devices"), err=str(exc))
-    return go(client_url(device.client_id, check_id, "devices"), msg="已儲存設備資料")
+    return go(client_url(device.client_id, check_id, "devices"), msg="Device saved.")
 
 
 @router.post("/devices/{device_id}/delete")
@@ -396,7 +398,7 @@ async def remove_device(device_id: int, request: Request, db: Session = Depends(
     delete_device_files(db, device, request.app.state.upload_dir)
     db.delete(device)
     db.commit()
-    return go(client_url(client_id, check_id, "devices"), msg="已刪除設備")
+    return go(client_url(client_id, check_id, "devices"), msg="Device deleted.")
 
 
 @router.post("/checks/{check_id}/items")
@@ -410,7 +412,7 @@ async def save_items(check_id: int, request: Request, db: Session = Depends(get_
         db.commit()
     except FormError as exc:
         return go(client_url(check.client_id, check.id, "checklist"), err=str(exc))
-    return go(client_url(check.client_id, check.id, "checklist"), msg="已儲存檢查表")
+    return go(client_url(check.client_id, check.id, "checklist"), msg="Checklist saved.")
 
 
 @router.post("/clients/{client_id}/custom-items")
@@ -428,7 +430,7 @@ async def create_custom(client_id: int, request: Request, db: Session = Depends(
         db.commit()
     except FormError as exc:
         return go(client_url(client.id, check_id, "checklist"), err=str(exc))
-    return go(client_url(client.id, check_id, "checklist"), msg="已新增其他項目")
+    return go(client_url(client.id, check_id, "checklist"), msg="Extra item added.")
 
 
 @router.post("/custom-items/{item_id}/delete")
@@ -441,7 +443,7 @@ async def remove_custom(item_id: int, request: Request, db: Session = Depends(ge
     check_id = _int_or_none(form.get("check_id"))
     delete_custom_item(db, custom, request.app.state.upload_dir)
     db.commit()
-    return go(client_url(client_id, check_id, "checklist"), msg="已刪除其他項目")
+    return go(client_url(client_id, check_id, "checklist"), msg="Extra item deleted.")
 
 
 @router.post("/clients/{client_id}/issues")
@@ -457,7 +459,7 @@ async def create_issue_route(client_id: int, request: Request, db: Session = Dep
         db.commit()
     except FormError as exc:
         return go(client_url(client.id, check_id, "issues"), err=str(exc))
-    return go(client_url(client.id, check_id, "issues"), msg=f"已登記 {issue.code}")
+    return go(client_url(client.id, check_id, "issues"), msg=f"{issue.code} logged.")
 
 
 @router.post("/issues/{issue_id}")
@@ -473,7 +475,7 @@ async def edit_issue(issue_id: int, request: Request, db: Session = Depends(get_
         db.commit()
     except FormError as exc:
         return go(client_url(issue.client_id, check_id, "issues"), err=str(exc))
-    return go(client_url(issue.client_id, check_id, "issues"), msg=f"已儲存 {issue.code}")
+    return go(client_url(issue.client_id, check_id, "issues"), msg=f"{issue.code} saved.")
 
 
 @router.post("/issues/{issue_id}/delete")
@@ -488,7 +490,7 @@ async def remove_issue(issue_id: int, request: Request, db: Session = Depends(ge
     delete_issue_files(db, issue, request.app.state.upload_dir)
     db.delete(issue)
     db.commit()
-    return go(client_url(client_id, check_id, "issues"), msg=f"已刪除 {code}")
+    return go(client_url(client_id, check_id, "issues"), msg=f"{code} deleted.")
 
 
 @router.post("/checks/{check_id}/include-issues")
@@ -498,7 +500,7 @@ async def include_issues(check_id: int, request: Request, db: Session = Depends(
         return not_found()
     added = include_known_issues(db, check)
     db.commit()
-    message = "沒有需要列入的問題" if added == 0 else f"已把 {added} 個問題列入本月"
+    message = "No extra issues to include." if added == 0 else f"Included {added} existing issue(s) in this month."
     return go(client_url(check.client_id, check.id, "issues"), msg=message)
 
 
@@ -514,7 +516,7 @@ async def create_expiry_route(client_id: int, request: Request, db: Session = De
         db.commit()
     except FormError as exc:
         return go(client_url(client.id, check_id, "expiries"), err=str(exc))
-    return go(client_url(client.id, check_id, "expiries"), msg="已新增到期項目")
+    return go(client_url(client.id, check_id, "expiries"), msg="Expiry added.")
 
 
 @router.post("/expiries/{expiry_id}")
@@ -529,7 +531,7 @@ async def edit_expiry(expiry_id: int, request: Request, db: Session = Depends(ge
         db.commit()
     except FormError as exc:
         return go(client_url(expiry.client_id, check_id, "expiries"), err=str(exc))
-    return go(client_url(expiry.client_id, check_id, "expiries"), msg="已儲存到期項目")
+    return go(client_url(expiry.client_id, check_id, "expiries"), msg="Expiry saved.")
 
 
 @router.post("/expiries/{expiry_id}/delete")
@@ -542,7 +544,7 @@ async def remove_expiry(expiry_id: int, request: Request, db: Session = Depends(
     check_id = _int_or_none(form.get("check_id"))
     db.delete(expiry)
     db.commit()
-    return go(client_url(client_id, check_id, "expiries"), msg="已刪除到期項目")
+    return go(client_url(client_id, check_id, "expiries"), msg="Expiry deleted.")
 
 
 @router.post("/clients/{client_id}/expiries/copy-warranty")
@@ -554,13 +556,13 @@ async def copy_warranty_route(client_id: int, request: Request, db: Session = De
     check_id = _int_or_none(form.get("check_id"))
     device = db.get(Device, _int_or_none(form.get("device_id")) or 0)
     if device is None:
-        return go(client_url(client.id, check_id, "expiries"), err="請選擇要抄入的設備")
+        return go(client_url(client.id, check_id, "expiries"), err="Choose a device to copy.")
     try:
         copy_warranty(db, client, device)
         db.commit()
     except FormError as exc:
         return go(client_url(client.id, check_id, "expiries"), err=str(exc))
-    return go(client_url(client.id, check_id, "expiries"), msg="已從設備保固抄入")
+    return go(client_url(client.id, check_id, "expiries"), msg="Warranty copied onto the expiry list.")
 
 
 @router.post("/attachments")
@@ -570,16 +572,16 @@ async def upload_attachment(request: Request, db: Session = Depends(get_db)):
     target_id = _int_or_none(form.get("target_id"))
     fallback = safe_next(form.get("next"), "/")
     if target_id is None:
-        return go(fallback, err="找不到要附加截圖的項目")
+        return go(fallback, err="Could not find the item for this screenshot.")
     resolved = resolve_attachment_target(db, target_type, target_id)
     if resolved is None:
-        return go(fallback, err="找不到要附加截圖的項目")
+        return go(fallback, err="Could not find the item for this screenshot.")
     client_id, _row = resolved
     uploads = [item for item in form.getlist("files") if getattr(item, "filename", None)]
     if not uploads:
-        return go(fallback, err="請選擇 jpg、png 或 webp")
+        return go(fallback, err="Choose a jpg, png, or webp file.")
     if len(uploads) > 8:
-        return go(fallback, err="一次最多上傳 8 張")
+        return go(fallback, err="Upload at most 8 files at a time.")
     prepared = []
     try:
         for upload in uploads:
@@ -604,7 +606,7 @@ async def upload_attachment(request: Request, db: Session = Depends(get_db)):
     except ValueError as exc:
         db.rollback()
         return go(fallback, err=str(exc))
-    return go(fallback, msg="已上傳截圖")
+    return go(fallback, msg="Screenshot uploaded.")
 
 
 @router.post("/attachments/{attachment_id}/delete")
@@ -613,10 +615,10 @@ async def remove_attachment(attachment_id: int, request: Request, db: Session = 
     form = await request.form()
     fallback = safe_next(form.get("next"), "/")
     if row is None:
-        return go(fallback, err="找不到截圖")
+        return go(fallback, err="Screenshot not found.")
     delete_attachment_row(db, request.app.state.upload_dir, row)
     db.commit()
-    return go(fallback, msg="已刪除截圖")
+    return go(fallback, msg="Screenshot deleted.")
 
 
 @router.get("/attachments/{attachment_id}")
@@ -669,8 +671,8 @@ def export_pdf(check_id: int, request: Request, db: Session = Depends(get_db)):
         payload = build_pdf(view, request.app.state.upload_dir)
     except Exception as exc:  # noqa: BLE001 — surface a short message, not a stack trace
         return HTMLResponse(
-            "<!doctype html><meta charset='utf-8'><title>無法產生 PDF</title>"
-            f"<p style='font-family:sans-serif'>無法產生 PDF：{exc}</p>",
+            "<!doctype html><meta charset='utf-8'><title>Could not build PDF</title>"
+            f"<p style='font-family:sans-serif'>Could not build the PDF: {exc}</p>",
             status_code=500,
         )
     filename = _export_name(view["client"], check, "pdf")
@@ -701,7 +703,7 @@ def _int_or_none(value) -> int | None:
 
 
 def _export_name(client: Client, check: Check, ext: str) -> str:
-    raw = f"{client.name}_{client.site}_{check.year_month}_健康檢查.{ext}"
+    raw = f"{client.name}_{client.site}_{check.year_month}_health-check.{ext}"
     return raw.replace("/", "-").replace("\\", "-").replace('"', "")
 
 
