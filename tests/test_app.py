@@ -59,20 +59,20 @@ def test_client_a_november_compares_with_last_month(client):
     page = client.get(f"/clients/{client_id}")
     assert page.status_code == 200
     assert 'data-light="Red"' in page.text
-    assert "ISS-001" in page.text
+    assert "Which AP is down" in page.text
+    assert "HDD" in page.text
+    assert "show interfaces status" in page.text
     assert "192.0.2.20" in page.text
     assert "AP-01" in page.text
-    for phrase in ("Same as last month", "New this month", "Recovered", "Now in use"):
-        assert phrase in page.text
-    assert "not from today" in page.text
+    assert "not today" in page.text
     assert 'data-month="2026-10"' in page.text
     assert 'data-month="2026-11"' in page.text
     october = re.search(r'data-month="2026-10" data-light="([^"]+)" href="/clients/\d+\?check=(\d+)"', page.text)
     assert october
     assert october.group(1) == "Red"
     older = client.get(f"/clients/{client_id}?check={october.group(2)}")
-    assert "ISS-004" not in older.text
-    assert "ISS-001" in older.text
+    assert "Under 15% free" not in older.text
+    assert "AP-01 offline" in older.text
 
 
 def test_client_b_turns_from_green_to_yellow(client):
@@ -95,17 +95,15 @@ def test_excel_and_pdf_export(client):
     assert workbook_response.status_code == 200
     assert workbook_response.content[:2] == b"PK"
     workbook = load_workbook(BytesIO(workbook_response.content))
-    assert workbook.sheetnames == ["Cover", "Devices", "Checklist", "Issues", "Expiries"]
+    assert workbook.sheetnames == ["Cover", "Devices", "Issues", "Expiries"]
     cover = workbook["Cover"]
     assert cover["B5"].value == "Client A"
     assert cover["B11"].value == "Red"
-    checklist = workbook["Checklist"]
-    compares = [checklist.cell(row, 7).value for row in range(5, 20)]
-    assert "New this month" in compares
-    assert "Recovered" in compares
     devices = workbook["Devices"]
     assert devices["A4"].value == "Type"
-    assert any(devices.cell(row, 2).value == "AP-01" for row in range(5, 12))
+    blobs = [str(devices.cell(row, 9).value or "") for row in range(5, 12)]
+    assert any("Which AP is down" in blob and "Abnormal" in blob for blob in blobs)
+    assert any("HDD" in blob for blob in blobs)
 
     pdf = client.get(f"/checks/{check_id}/export.pdf")
     if pdf.status_code != 200:
@@ -130,12 +128,31 @@ def test_new_client_month_flow_upload_and_copy_warranty(client):
     )
     assert 'data-light="Not started"' in started.text
     check_id = re.search(r"/checks/(\d+)/export", started.text).group(1)
-    item_ids = re.findall(r'name="result_(\d+)"', started.text)
-    assert len(item_ids) == 10
-    payload = {f"result_{item_id}": "Normal" for item_id in item_ids}
-    payload[f"result_{item_ids[0]}"] = "Abnormal"
-    payload[f"notes_{item_ids[0]}"] = "Gateway down"
-    saved = client.post(f"/checks/{check_id}/items", data=payload, follow_redirects=True)
+    added_device = client.post(
+        f"/clients/{client_id}/devices",
+        data={
+            "check_id": check_id,
+            "device_type": "NVR",
+            "name": "NVR-T",
+            "ip_address": "192.0.2.40",
+            "added_on": "2026-10-01",
+        },
+        follow_redirects=True,
+    )
+    device_match = re.search(r'action="/devices/(\d+)/checks"', added_device.text)
+    assert device_match
+    with_check = client.post(
+        f"/devices/{device_match.group(1)}/checks",
+        data={"check_id": check_id, "name": "HDD", "command": ""},
+        follow_redirects=True,
+    )
+    result_ids = re.findall(r'name="dresult_(\d+)"', with_check.text)
+    assert result_ids
+    saved = client.post(
+        f"/checks/{check_id}/device-checks",
+        data={f"dresult_{result_ids[0]}": "Abnormal", f"dissue_{result_ids[0]}": "Disk failed"},
+        follow_redirects=True,
+    )
     assert 'data-light="Red"' in saved.text
 
     again = client.post(
@@ -155,25 +172,28 @@ def test_new_client_month_flow_upload_and_copy_warranty(client):
         },
         follow_redirects=True,
     )
+    assert "HDD" in november.text
     assert "Abnormal" in november.text
     nov_check = re.search(r"/checks/(\d+)/export", november.text).group(1)
-    nov_items = re.findall(r'name="result_(\d+)"', november.text)
-    nov_payload = {f"result_{item_id}": "Normal" for item_id in nov_items}
-    restored = client.post(f"/checks/{nov_check}/items", data=nov_payload, follow_redirects=True)
-    assert 'data-compare="Recovered"' in restored.text
+    nov_ids = re.findall(r'name="dresult_(\d+)"', november.text)
+    restored = client.post(
+        f"/checks/{nov_check}/device-checks",
+        data={f"dresult_{item_id}": "Normal" for item_id in nov_ids},
+        follow_redirects=True,
+    )
     assert 'data-light="Green"' in restored.text
 
-    item_id = nov_items[0]
+    item_id = nov_ids[0]
     rejected = client.post(
         "/attachments",
-        data={"target_type": "check_item", "target_id": item_id, "next": f"/clients/{client_id}?check={nov_check}"},
+        data={"target_type": "device_check_result", "target_id": item_id, "next": f"/clients/{client_id}?check={nov_check}"},
         files={"files": ("bad.gif", b"GIF89a", "image/gif")},
         follow_redirects=True,
     )
     assert "Only jpg" in rejected.text
     uploaded = client.post(
         "/attachments",
-        data={"target_type": "check_item", "target_id": item_id, "next": f"/clients/{client_id}?check={nov_check}"},
+        data={"target_type": "device_check_result", "target_id": item_id, "next": f"/clients/{client_id}?check={nov_check}"},
         files={"files": ("ping.png", _png_bytes(), "image/png")},
         follow_redirects=True,
     )
@@ -243,7 +263,7 @@ def test_issue_keeps_its_code(client):
         data={"check_date": "2026-12-01", "engineer": "Tester", "connection_method": "VPN"},
         follow_redirects=True,
     )
-    assert second_month.text.count("ISS-001") >= 1
+    assert second_month.status_code == 200
     assert "ISS-002" not in second_month.text
 
 

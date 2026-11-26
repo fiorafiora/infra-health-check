@@ -20,6 +20,8 @@ from app.models import (
     Client,
     CustomCheckItem,
     Device,
+    DeviceCheck,
+    DeviceCheckResult,
     DeviceMonth,
     Expiry,
     Issue,
@@ -120,6 +122,7 @@ def _seed(db: Session, upload_dir: Path) -> None:
             (nvr, "Abnormal", "Example: disk space is low", "See ISS-004", D(2026, 11, 1), D(2026, 10, 1)),
         ],
     )
+    hdd_nov, ap_check_nov = _seed_client_a_checks(db, oct_a, nov_a, srv, fw, sw, ap, nvr)
 
     iss1 = _issue(
         db,
@@ -240,12 +243,12 @@ def _seed(db: Session, upload_dir: Path) -> None:
     )
     save_attachment(
         db, upload_dir,
-        client_id=client_a.id, target_type="device_month", target_id=ap_nov.id,
+        client_id=client_a.id, target_type="device_check_result", target_id=ap_check_nov.id,
         original_name="example-AP-01-offline.png", data=ap_png, mime="image/png",
     )
     save_attachment(
         db, upload_dir,
-        client_id=client_a.id, target_type="check_item", target_id=item4.id,
+        client_id=client_a.id, target_type="device_check_result", target_id=ap_check_nov.id,
         original_name="example-AP-offline-list.png", data=ap_png, mime="image/png",
     )
     save_attachment(
@@ -255,12 +258,12 @@ def _seed(db: Session, upload_dir: Path) -> None:
     )
     save_attachment(
         db, upload_dir,
-        client_id=client_a.id, target_type="device_month", target_id=nvr_nov.id,
+        client_id=client_a.id, target_type="device_check_result", target_id=hdd_nov.id,
         original_name="example-NVR-disk-space.png", data=disk_png, mime="image/png",
     )
     save_attachment(
         db, upload_dir,
-        client_id=client_a.id, target_type="check_item", target_id=item6.id,
+        client_id=client_a.id, target_type="device_check_result", target_id=hdd_nov.id,
         original_name="example-disk-space.png", data=disk_png, mime="image/png",
     )
 
@@ -295,6 +298,9 @@ def _seed(db: Session, upload_dir: Path) -> None:
                 (ap2, "Normal", None, None, None, last),
             ],
         )
+    _seed_simple_checks(db, (oct_b, nov_b), fw2, "Licence", "show license", "Normal")
+    _seed_simple_checks(db, (oct_b, nov_b), srv2, "Disk space", "", "Normal")
+    _seed_simple_checks(db, (oct_b, nov_b), ap2, "Which AP is down", "", "Normal")
     db.add(
         Expiry(
             client_id=client_b.id,
@@ -328,6 +334,11 @@ def _seed(db: Session, upload_dir: Path) -> None:
     )
     _items(db, nov_c, None, {}, None)
     db.add(DeviceMonth(check_id=nov_c.id, device_id=nvr3.id, last_check_date=None))
+    _define_check(db, nvr3, "HDD", "", 10)
+    _define_check(db, nvr3, "Playback", "", 20)
+    db.flush()
+    from app.service import _copy_device_checks
+    _copy_device_checks(db, nov_c, nvr3)
     db.add(
         Expiry(
             client_id=client_c.id,
@@ -341,6 +352,51 @@ def _seed(db: Session, upload_dir: Path) -> None:
         )
     )
     db.flush()
+
+
+def _define_check(db, device, name, command, sort_order):
+    row = DeviceCheck(device_id=device.id, name=name, command=command or None, sort_order=sort_order)
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _result(db, monthly, definition, result, issue):
+    row = DeviceCheckResult(
+        check_id=monthly.id,
+        device_check_id=definition.id,
+        result=result,
+        issue=issue,
+    )
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _seed_client_a_checks(db, oct_a, nov_a, srv, fw, sw, ap, nvr):
+    disk = _define_check(db, srv, "Disk space", "", 10)
+    licence = _define_check(db, fw, "Licence", "show license", 10)
+    interfaces = _define_check(db, sw, "Interfaces", "show interfaces status", 10)
+    ap_down = _define_check(db, ap, "Which AP is down", "", 10)
+    hdd = _define_check(db, nvr, "HDD", "", 10)
+    playback = _define_check(db, nvr, "Playback", "", 20)
+    for monthly in (oct_a, nov_a):
+        _result(db, monthly, disk, "Normal", None)
+        _result(db, monthly, licence, "Normal", None)
+        _result(db, monthly, interfaces, "Normal", None)
+        _result(db, monthly, playback, "Normal", None)
+    _result(db, oct_a, ap_down, "Abnormal", "AP-01 offline")
+    ap_nov = _result(db, nov_a, ap_down, "Abnormal", "AP-01 still offline")
+    _result(db, oct_a, hdd, "Normal", None)
+    hdd_nov = _result(db, nov_a, hdd, "Abnormal", "Under 15% free")
+    return hdd_nov, ap_nov
+
+
+def _seed_simple_checks(db, months, device, name, command, result):
+    item = _define_check(db, device, name, command, 10)
+    for monthly in months:
+        _result(db, monthly, item, result, None)
+    return item
 
 
 def _client(db: Session, name: str, site: str, notes: str) -> Client:

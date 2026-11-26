@@ -1,6 +1,6 @@
 """Fixed choices and the monthly checklist order."""
 
-DEVICE_TYPES = ("Server", "Switch", "Firewall", "AP", "NVR", "Other")
+DEVICE_TYPES = ("Server", "Router", "Switch", "Firewall", "AP", "NVR", "Other")
 DEVICE_STATUSES = ("Normal", "Abnormal")
 CHECK_RESULTS = ("Normal", "Abnormal", "N/A")
 CONNECTION_METHODS = ("VPN", "AnyDesk", "Other")

@@ -21,12 +21,13 @@ from app.constants import (
     STAGE_HEADINGS,
 )
 from app.exports import build_pdf, build_xlsx
-from app.models import Attachment, Check, Client, CustomCheckItem, Device, Expiry, Issue
+from app.models import Attachment, Check, Client, CustomCheckItem, Device, DeviceCheck, Expiry, Issue
 from app.service import (
     FormError,
     add_custom_item,
     parse_hours,
     add_device,
+    add_device_check,
     build_check_view,
     clean,
     copy_warranty,
@@ -35,6 +36,7 @@ from app.service import (
     delete_check_files,
     delete_client_files,
     delete_custom_item,
+    delete_device_check,
     delete_device_files,
     delete_issue_files,
     include_known_issues,
@@ -42,6 +44,7 @@ from app.service import (
     resolve_attachment_target,
     save_check_cover,
     save_check_items,
+    save_device_check_results,
     save_device_months,
     start_check,
     update_device,
@@ -181,6 +184,7 @@ def index(request: Request, db: Session = Depends(get_db)):
                 "check_id": latest.id if latest else None,
             }
         )
+    db.commit()
     return render(
         request,
         "index.html",
@@ -239,6 +243,7 @@ def client_page(
     devices = db.scalars(
         select(Device).where(Device.client_id == client.id).order_by(Device.sort_order, Device.id)
     ).all()
+    db.commit()
     return render(
         request,
         "client.html",
@@ -343,6 +348,49 @@ async def save_devices(check_id: int, request: Request, db: Session = Depends(ge
     except FormError as exc:
         return go(client_url(check.client_id, check.id, "devices"), err=str(exc))
     return go(client_url(check.client_id, check.id, "devices"), msg="Device status saved.")
+
+
+@router.post("/checks/{check_id}/device-checks")
+async def save_device_checks(check_id: int, request: Request, db: Session = Depends(get_db)):
+    check = db.get(Check, check_id)
+    if check is None:
+        return not_found()
+    form = await request.form()
+    try:
+        save_device_check_results(db, check, form)
+        db.commit()
+    except FormError as exc:
+        return go(client_url(check.client_id, check.id, "devices"), err=str(exc))
+    return go(client_url(check.client_id, check.id, "devices"), msg="Checks saved.")
+
+
+@router.post("/devices/{device_id}/checks")
+async def create_device_check(device_id: int, request: Request, db: Session = Depends(get_db)):
+    device = db.get(Device, device_id)
+    if device is None:
+        return not_found()
+    form = await request.form()
+    check_id = _int_or_none(form.get("check_id"))
+    try:
+        add_device_check(db, device, form.get("name"), form.get("command"))
+        db.commit()
+    except FormError as exc:
+        return go(client_url(device.client_id, check_id, "devices"), err=str(exc))
+    return go(client_url(device.client_id, check_id, "devices"), msg="Check added.")
+
+
+@router.post("/device-checks/{item_id}/delete")
+async def remove_device_check(item_id: int, request: Request, db: Session = Depends(get_db)):
+    item = db.get(DeviceCheck, item_id)
+    if item is None:
+        return not_found()
+    device = db.get(Device, item.device_id)
+    form = await request.form()
+    check_id = _int_or_none(form.get("check_id"))
+    client_id = device.client_id if device else 0
+    delete_device_check(db, item, request.app.state.upload_dir)
+    db.commit()
+    return go(client_url(client_id, check_id, "devices"), msg="Check removed.")
 
 
 @router.post("/clients/{client_id}/devices")

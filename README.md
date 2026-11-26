@@ -78,18 +78,13 @@ Delete them before real use. After they are gone, a restart does **not** load th
 - Device types: Server, Switch, Firewall, AP, NVR, Other. Fields: name, model, serial, IP, firmware, warranty / support expiry, last check, this month (Normal / Abnormal), exception, follow-up, date first found, screenshots.
 - Start a month with check date, engineer, connection (VPN / AnyDesk / Other), duration, and notes.
 - Overall light:
-  - **Red** — a checklist item or device is Abnormal, or something is Expired
-  - **Amber** — no red condition, but a follow-up is Open or In progress, or something is due within 30 or 90 days
-  - **Green** — the checklist is filled in, and none of the above apply
-  - **Not started** — the checklist is empty, and there is no abnormal item, open follow-up, or expiry warning
+  - **Red** — a device check is Abnormal, or something is Expired
+  - **Amber** — nothing is red, but something is due within 30 or 90 days
+  - **Green** — at least one check is filled in, and nothing above applies
+  - **Not started** — no check result yet, and no expiry warning
   - A Normal expiry on its own does not turn the light green
-- Checklist order:
-  1. Outage first: ping core / gateway, ping servers, ping NVR, controller AP offline list
-  2. Business critical: NVR / server disk or RAID, disk space, last successful backup, firewall / licence expiry
-  3. Later, optional: log review, firmware check
-  4. Extra items for that site
-- Each item has this month (Normal / Abnormal / N/A), notes, last month, an automatic comparison, and screenshots.
-- Issues keep an ID such as ISS-001 across months. Status is Open, In progress, or Closed.
+- Each device has its own check list, set once. An NVR might have HDD and playback. An AP might have which AP is down. A router or switch can store the command to run. A new month loads those checks with blank results.
+- On the device, mark each check Normal or Abnormal, write the issue, and upload a screenshot.
 - Expiries: Licence, Warranty, SSL certificate, Support contract, or Other. Days left use the check date. Status is Expired, Due in 30 days, Due in 90 days, or Normal. Copy a device warranty in only when you choose to.
 - Screenshots attach to a device’s month, a checklist item, or an issue. Thumbnails open to the full image. 5 MB each, 8 per item.
 - Export one client and month as PDF and Excel. The PDF embeds up to 8 thumbnails. The Excel file lists file names.

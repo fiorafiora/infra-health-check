@@ -159,7 +159,7 @@ section[id] { scroll-margin-top: 42px; }
 .stats {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 0;
   padding: 0;
   margin: 10px 0;
@@ -304,6 +304,11 @@ table { border-collapse: collapse; }
 details summary { cursor: pointer; }
 details form { margin-top: 8px; }
 .start-month { margin-top: 8px; }
+.device-block { border-top: 1px solid var(--line); padding: 8px 0 10px; }
+.device-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-bottom: 4px; }
+.mini { width: 100%; border-collapse: collapse; }
+.mini th, .mini td { border: 1px solid #ddd; padding: 4px 6px; vertical-align: top; background: #fff; }
+.mini th { background: #eee; font-size: 12px; text-align: left; }
 
 .lightbox[hidden] { display: none !important; }
 .lightbox {

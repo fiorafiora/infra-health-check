@@ -25,6 +25,8 @@ from app.models import (
     Client,
     CustomCheckItem,
     Device,
+    DeviceCheck,
+    DeviceCheckResult,
     DeviceMonth,
     Expiry,
     Issue,
@@ -120,6 +122,64 @@ def _prev_item_map(db: Session, check: Check | None) -> dict:
     return mapped
 
 
+def _copy_device_checks(db: Session, check: Check, device: Device) -> None:
+    definitions = db.scalars(
+        select(DeviceCheck)
+        .where(DeviceCheck.device_id == device.id)
+        .order_by(DeviceCheck.sort_order, DeviceCheck.id)
+    ).all()
+    for definition in definitions:
+        exists = db.scalar(
+            select(DeviceCheckResult.id).where(
+                DeviceCheckResult.check_id == check.id,
+                DeviceCheckResult.device_check_id == definition.id,
+            )
+        )
+        if exists:
+            continue
+        db.add(DeviceCheckResult(check_id=check.id, device_check_id=definition.id))
+
+
+def add_device_check(db: Session, device: Device, name: str, command: str | None) -> DeviceCheck:
+    name = clean(name, 200)
+    if not name:
+        raise FormError("Enter a check name.")
+    current_max = db.scalar(
+        select(func.max(DeviceCheck.sort_order)).where(DeviceCheck.device_id == device.id)
+    )
+    item = DeviceCheck(
+        device_id=device.id,
+        name=name,
+        command=clean(command, 500),
+        sort_order=(current_max or 0) + 10,
+    )
+    db.add(item)
+    db.flush()
+    months = db.scalars(select(DeviceMonth).where(DeviceMonth.device_id == device.id)).all()
+    for month in months:
+        db.add(DeviceCheckResult(check_id=month.check_id, device_check_id=item.id))
+    return item
+
+
+def delete_device_check(db: Session, item: DeviceCheck, upload_dir) -> None:
+    results = db.scalars(
+        select(DeviceCheckResult).where(DeviceCheckResult.device_check_id == item.id)
+    ).all()
+    delete_attachments_for(db, upload_dir, "device_check_result", [row.id for row in results])
+    for row in results:
+        db.delete(row)
+    db.delete(item)
+
+
+def save_device_check_results(db: Session, check: Check, form) -> None:
+    rows = db.scalars(
+        select(DeviceCheckResult).where(DeviceCheckResult.check_id == check.id)
+    ).all()
+    for row in rows:
+        row.result = optional_choice(form.get(f"dresult_{row.id}"), DEVICE_STATUSES)
+        row.issue = clean(form.get(f"dissue_{row.id}"))
+
+
 def start_check(
     db: Session,
     client: Client,
@@ -146,7 +206,6 @@ def start_check(
         .where(Check.client_id == client.id, Check.check_date < check_date)
         .order_by(Check.check_date.desc())
     )
-    prev_items = _prev_item_map(db, prev)
     check = Check(
         client_id=client.id,
         check_date=check_date,
@@ -158,38 +217,6 @@ def start_check(
     )
     db.add(check)
     db.flush()
-
-    for seq, stage, name in FIXED_ITEMS:
-        db.add(
-            CheckItem(
-                check_id=check.id,
-                seq=seq,
-                stage=stage,
-                name=name,
-                is_custom=False,
-                prev_result=prev_items.get(("fixed", seq)),
-            )
-        )
-
-    customs = db.scalars(
-        select(CustomCheckItem)
-        .where(CustomCheckItem.client_id == client.id, CustomCheckItem.active.is_(True))
-        .order_by(CustomCheckItem.sort_order, CustomCheckItem.id)
-    ).all()
-    seq = 10
-    for custom in customs:
-        seq += 1
-        db.add(
-            CheckItem(
-                check_id=check.id,
-                seq=seq,
-                stage=CUSTOM_STAGE,
-                name=custom.name,
-                is_custom=True,
-                custom_item_id=custom.id,
-                prev_result=prev_items.get(("custom", custom.id)),
-            )
-        )
 
     devices = db.scalars(
         select(Device)
@@ -212,6 +239,7 @@ def start_check(
                 first_found_date=previous_month.first_found_date if previous_month else None,
             )
         )
+        _copy_device_checks(db, check, device)
 
     issues = db.scalars(
         select(Issue)
@@ -402,24 +430,8 @@ def include_known_issues(db: Session, check: Check) -> int:
 def build_check_view(db: Session, check: Check) -> dict:
     client = db.get(Client, check.client_id)
     att = _attachment_map(db, client.id)
-    items = db.scalars(
-        select(CheckItem).where(CheckItem.check_id == check.id).order_by(CheckItem.seq, CheckItem.id)
-    ).all()
-    item_views = []
     abnormal_items = 0
     filled_items = 0
-    for item in items:
-        if item.result == "Abnormal":
-            abnormal_items += 1
-        if item.result in ("Normal", "Abnormal", "N/A"):
-            filled_items += 1
-        item_views.append(
-            {
-                "item": item,
-                "compare": compare_result(item.result, item.prev_result),
-                "attachments": att.get(("check_item", item.id), []),
-            }
-        )
 
     months = {
         row.device_id: row
@@ -440,18 +452,65 @@ def build_check_view(db: Session, check: Check) -> dict:
             .where(Device.id.in_(device_ids))
             .order_by(Device.sort_order, Device.id)
         ).all()
+    definitions = []
+    if device_ids:
+        definitions = db.scalars(
+            select(DeviceCheck)
+            .where(DeviceCheck.device_id.in_(device_ids))
+            .order_by(DeviceCheck.sort_order, DeviceCheck.id)
+        ).all()
+    results = {
+        row.device_check_id: row
+        for row in db.scalars(
+            select(DeviceCheckResult).where(DeviceCheckResult.check_id == check.id)
+        )
+    }
+    prev_results = {}
+    if prev:
+        prev_results = {
+            row.device_check_id: row
+            for row in db.scalars(
+                select(DeviceCheckResult).where(DeviceCheckResult.check_id == prev.id)
+            )
+        }
     device_views = []
     abnormal_devices = 0
     for device in devices:
         month = months[device.id]
-        if month.status == "Abnormal":
+        lines = []
+        device_abnormal = False
+        for definition in definitions:
+            if definition.device_id != device.id:
+                continue
+            result = results.get(definition.id)
+            if result is None:
+                result = DeviceCheckResult(check_id=check.id, device_check_id=definition.id)
+                db.add(result)
+                db.flush()
+                results[definition.id] = result
+            previous = prev_results.get(definition.id)
+            if result.result == "Abnormal":
+                abnormal_items += 1
+                device_abnormal = True
+            if result.result in ("Normal", "Abnormal"):
+                filled_items += 1
+            lines.append(
+                {
+                    "definition": definition,
+                    "result": result,
+                    "prev_result": previous.result if previous else None,
+                    "attachments": att.get(("device_check_result", result.id), []),
+                }
+            )
+        if device_abnormal:
             abnormal_devices += 1
-        previous = prev_months.get(device.id)
+        previous_month = prev_months.get(device.id)
         device_views.append(
             {
                 "device": device,
                 "month": month,
-                "prev_status": previous.status if previous else None,
+                "checks": lines,
+                "prev_status": previous_month.status if previous_month else None,
                 "attachments": att.get(("device_month", month.id), []),
             }
         )
@@ -534,7 +593,7 @@ def build_check_view(db: Session, check: Check) -> dict:
         "check": check,
         "light": light,
         "counts": counts,
-        "items": item_views,
+        "items": [],
         "devices": device_views,
         "issues": issue_views,
         "expiries": expiry_views,
@@ -806,6 +865,14 @@ def delete_device_files(db: Session, device: Device, upload_dir) -> None:
         db.scalars(select(DeviceMonth.id).where(DeviceMonth.device_id == device.id)).all()
     )
     delete_attachments_for(db, upload_dir, "device_month", dm_ids)
+    result_ids = list(
+        db.scalars(
+            select(DeviceCheckResult.id)
+            .join(DeviceCheck, DeviceCheck.id == DeviceCheckResult.device_check_id)
+            .where(DeviceCheck.device_id == device.id)
+        ).all()
+    )
+    delete_attachments_for(db, upload_dir, "device_check_result", result_ids)
 
 
 def delete_issue_files(db: Session, issue: Issue, upload_dir) -> None:
@@ -829,6 +896,15 @@ def resolve_attachment_target(db: Session, target_type: str, target_id: int):
         if row is None:
             return None
         device = db.get(Device, row.device_id)
+        return (device.client_id, row) if device else None
+    if target_type == "device_check_result":
+        row = db.get(DeviceCheckResult, target_id)
+        if row is None:
+            return None
+        definition = db.get(DeviceCheck, row.device_check_id)
+        if definition is None:
+            return None
+        device = db.get(Device, definition.device_id)
         return (device.client_id, row) if device else None
     if target_type == "check_item":
         row = db.get(CheckItem, target_id)

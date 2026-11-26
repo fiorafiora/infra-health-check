@@ -126,6 +126,46 @@ class DeviceMonth(Base):
     device: Mapped[Device] = relationship(back_populates="months")
 
 
+class DeviceCheck(Base):
+    """A check this device needs every month, set once on the device."""
+
+    __tablename__ = "device_checks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    device_id: Mapped[int] = mapped_column(
+        ForeignKey("devices.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    command: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    device: Mapped[Device] = relationship()
+    results: Mapped[list["DeviceCheckResult"]] = relationship(
+        back_populates="device_check", passive_deletes=True
+    )
+
+
+class DeviceCheckResult(Base):
+    """This month's result for one device check."""
+
+    __tablename__ = "device_check_results"
+    __table_args__ = (
+        UniqueConstraint("check_id", "device_check_id", name="uq_check_device_check"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    check_id: Mapped[int] = mapped_column(
+        ForeignKey("checks.id", ondelete="CASCADE"), index=True
+    )
+    device_check_id: Mapped[int] = mapped_column(
+        ForeignKey("device_checks.id", ondelete="CASCADE"), index=True
+    )
+    result: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    issue: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    device_check: Mapped[DeviceCheck] = relationship(back_populates="results")
+
+
 class CustomCheckItem(Base):
     __tablename__ = "custom_check_items"
 

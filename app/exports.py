@@ -42,7 +42,6 @@ def build_xlsx(view: dict) -> bytes:
     wb = Workbook()
     _cover(wb.active, view)
     _devices(wb.create_sheet("Devices"), view)
-    _checklist(wb.create_sheet("Checklist"), view)
     _issues(wb.create_sheet("Issues"), view)
     _expiries(wb.create_sheet("Expiries"), view)
     wb.properties.title = f"{client.name} {client.site} {check.year_month} health check"
@@ -145,8 +144,7 @@ def _cover(ws, view):
 def _devices(ws, view):
     headers = [
         "Type", "Name", "Model", "Serial", "IP address", "Firmware",
-        "Warranty / support", "Last check", "This month", "Exception", "Follow-up",
-        "First found", "Screenshot",
+        "Warranty / support", "Last check", "Checks", "Screenshot",
     ]
     _sheet_banner(ws, view, "Devices")
     _header_row(ws, 4, headers)
@@ -155,15 +153,12 @@ def _devices(ws, view):
         values = [
             device.device_type, device.name, device.model, device.serial_no,
             device.ip_address, device.firmware, device.warranty_expiry,
-            month.last_check_date, month.status, month.exception_summary,
-            month.follow_up, month.first_found_date, _names(row["attachments"]),
+            month.last_check_date, _check_summary(row), _names(_check_files(row)),
         ]
         _write_row(ws, index, values)
-        _paint_status(ws.cell(index, 9), month.status)
     _finish_table(ws, 4, len(headers), 5 + len(view["devices"]))
-    _list_validation(ws, "A5:A200", '"Server,Switch,Firewall,AP,NVR,Other"')
-    _list_validation(ws, "I5:I200", '"Normal,Abnormal"')
-    widths = [12, 18, 16, 16, 16, 14, 18, 16, 12, 28, 22, 16, 28]
+    _list_validation(ws, "A5:A200", '"Server,Router,Switch,Firewall,AP,NVR,Other"')
+    widths = [12, 18, 16, 16, 16, 14, 18, 16, 42, 28]
     for i, width in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = width
 
@@ -383,6 +378,25 @@ def _paint_compare(cell, value: str | None):
         _fill_font(cell, SLATE_BG, SLATE)
 
 
+def _check_summary(row: dict) -> str:
+    lines = []
+    for line in row.get("checks") or []:
+        definition = line["definition"]
+        result = line["result"]
+        command = f" ({definition.command})" if definition.command else ""
+        status = result.result or "—"
+        issue = f" — {result.issue}" if result.issue else ""
+        lines.append(f"{definition.name}{command}: {status}{issue}")
+    return "\n".join(lines)
+
+
+def _check_files(row: dict) -> list:
+    files = list(row.get("attachments") or [])
+    for line in row.get("checks") or []:
+        files.extend(line.get("attachments") or [])
+    return files
+
+
 def _names(attachments) -> str:
     return "\n".join(item.original_name for item in attachments)
 
@@ -505,11 +519,8 @@ def _pdf_html(view: dict, images: list[dict], skipped: list[str]) -> str:
             f"<td class='nowrap'>{esc(device.ip_address or '—')}</td>"
             f"<td class='nowrap'>{date_text(device.warranty_expiry)}</td>"
             f"<td class='nowrap'>{date_text(month.last_check_date)}</td>"
-            f"<td class='st nowrap {_status_class(month.status)}'>{esc(month.status or '—')}</td>"
-            f"<td>{esc(month.exception_summary or '')}</td>"
-            f"<td>{esc(month.follow_up or '')}</td>"
-            f"<td class='nowrap'>{date_text(month.first_found_date)}</td>"
-            f"<td>{esc(_names(row['attachments']))}</td>"
+            f"<td>{esc(_check_summary(row)).replace(chr(10), '<br>')}</td>"
+            f"<td>{esc(_names(_check_files(row)))}</td>"
             "</tr>"
         )
     item_rows = []
@@ -615,17 +626,9 @@ def _pdf_html(view: dict, images: list[dict], skipped: list[str]) -> str:
       <table>
         <tr>
           <th>Type</th><th>Name (model, firmware, serial)</th><th>IP</th><th>Warranty / support</th>
-          <th>Last check</th><th>This month</th><th>Exception</th><th>Follow-up</th><th>First found</th><th>Screenshot</th>
+          <th>Last check</th><th>Checks</th><th>Screenshot</th>
         </tr>
-        {''.join(device_rows) or "<tr><td colspan='10'>No devices</td></tr>"}
-      </table>
-      <h2>Checklist</h2>
-      <table>
-        <tr>
-          <th>#</th><th>Item</th><th>This month</th><th>Notes</th>
-          <th>Last month</th><th>Compared with last month</th><th>Screenshot</th>
-        </tr>
-        {''.join(item_rows)}
+        {''.join(device_rows) or "<tr><td colspan='7'>No devices</td></tr>"}
       </table>
       <h2>Issues</h2>
       <table>
