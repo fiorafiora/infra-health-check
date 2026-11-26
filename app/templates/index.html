@@ -1,64 +1,55 @@
 {% extends "base.html" %}
-{% block title %}Clients · Monthly remote health check{% endblock %}
+{% block title %}Customers · Monthly remote health check{% endblock %}
 {% block content %}
 <section class="page-head">
-  <h1>Clients</h1>
+  <h1>Customers</h1>
 </section>
 
 {% if has_demo %}
 <aside class="banner demo">
-  Example data only (Client A–C, 192.0.2.x). Delete before real use.
-  Client A latest month is red, Client B is green, Client C is not started.
+  Example data only (Company A–C, 192.0.2.x). Delete before real use.
+  Company A has two sites. Main store’s latest month is red. Company B is green. Company C is not started.
 </aside>
 {% endif %}
 
 <section class="layout-home">
   <div class="card">
     <div class="card-head">
-      <h2>Clients</h2>
-      <input id="client-filter" type="search" placeholder="Filter by client or site" aria-label="Filter by client or site">
+      <h2>Customers</h2>
+      <input id="client-filter" type="search" placeholder="Filter by customer" aria-label="Filter by customer">
     </div>
     {% if cards %}
     <div class="sheet">
       <table class="list">
         <thead>
           <tr>
-            <th>Client</th>
-            <th>Site</th>
-            <th>Latest month</th>
-            <th>Overall</th>
-            <th>Devices</th>
-            <th>Open follow-ups</th>
+            <th>Customer</th>
+            <th>Sites</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
           {% for card in cards %}
-          <tr data-client="{{ card.client.name }}" data-site="{{ card.client.site }}" data-light="{{ card.light }}">
+          <tr data-client="{{ card.customer.name }}" data-site="" data-light="">
             <td>
-              <a class="name-link" href="/clients/{{ card.client.id }}{% if card.check_id %}?check={{ card.check_id }}{% endif %}">{{ card.client.name }}</a>
-              {% if card.client.is_demo %}<span class="tag">Example</span>{% endif %}
+              <a class="name-link" href="/customers/{{ card.customer.id }}">{{ card.customer.name }}</a>
+              {% if card.customer.is_demo %}<span class="tag">Example</span>{% endif %}
             </td>
-            <td>{{ card.client.site }}</td>
-            <td>{{ card.year_month or "—" }}</td>
-            <td>{% if card.light %}<span class="light" data-light="{{ card.light }}">{{ card.light }}</span>{% else %}—{% endif %}</td>
-            <td>{{ card.device_count }}</td>
-            <td>{{ card.open_followups }}</td>
-            <td><a class="btn small ghost" href="/clients/{{ card.client.id }}{% if card.check_id %}?check={{ card.check_id }}{% endif %}">Open</a></td>
+            <td>{{ card.site_count }}</td>
+            <td><a class="btn small ghost" href="/customers/{{ card.customer.id }}">Open</a></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     {% else %}
-    <p class="empty">No clients yet. Add the first site on the right.</p>
+    <p class="empty">No customers yet. Add the first one on the right.</p>
     {% endif %}
   </div>
 
-  <form class="card form-card" method="post" action="/clients">
-    <h2>Add a client</h2>
-    <label>Client name<input name="name" required maxlength="200" placeholder="For example, Client A"></label>
-    <label>Site<input name="site" required maxlength="200" placeholder="For example, Head office"></label>
+  <form class="card form-card" method="post" action="/customers">
+    <h2>Add a customer</h2>
+    <label>Customer name<input name="name" required maxlength="200" placeholder="For example, Company A"></label>
     <label>Notes<textarea name="notes" rows="3" maxlength="4000" placeholder="Optional"></textarea></label>
     <button class="btn" type="submit">Add</button>
   </form>

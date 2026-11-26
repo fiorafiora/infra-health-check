@@ -18,6 +18,8 @@ from app.models import (
     Check,
     CheckItem,
     Client,
+    Customer,
+    Site,
     CustomCheckItem,
     Device,
     DeviceCheck,
@@ -42,9 +44,11 @@ def seed_if_empty(db: Session, upload_dir: Path) -> None:
 
 
 def _seed(db: Session, upload_dir: Path) -> None:
-    client_a = _client(db, "Client A", "Example site", "Example data. Delete before real use.")
+    client_a = _client(db, "Company A", "Main store", "Example data. Delete before real use.")
+    db.add(Site(customer_id=client_a.customer_id, name="Branch store"))
+    db.flush()
     srv, fw, sw, ap, nvr = _devices_a(db, client_a)
-    ups = CustomCheckItem(client_id=client_a.id, name="UPS battery status", sort_order=10, active=True)
+    ups = CustomCheckItem(client_id=client_a.customer_id, name="UPS battery status", sort_order=10, active=True)
     db.add(ups)
     db.flush()
 
@@ -187,7 +191,7 @@ def _seed(db: Session, upload_dir: Path) -> None:
     db.add_all(
         [
             Expiry(
-                client_id=client_a.id,
+                client_id=client_a.customer_id,
                 kind="Licence",
                 name="Firewall licence (example)",
                 device_id=fw.id,
@@ -196,7 +200,7 @@ def _seed(db: Session, upload_dir: Path) -> None:
                 notes="Example: 60 days from 1 Nov, so within 90 days.",
             ),
             Expiry(
-                client_id=client_a.id,
+                client_id=client_a.customer_id,
                 kind="Warranty",
                 name="Server warranty (example)",
                 device_id=srv.id,
@@ -206,7 +210,7 @@ def _seed(db: Session, upload_dir: Path) -> None:
                 copied_from_device=True,
             ),
             Expiry(
-                client_id=client_a.id,
+                client_id=client_a.customer_id,
                 kind="SSL certificate",
                 name="Example SSL certificate",
                 device_id=srv.id,
@@ -215,7 +219,7 @@ def _seed(db: Session, upload_dir: Path) -> None:
                 notes="Example: installed on SRV-01. 14 days from 1 Nov.",
             ),
             Expiry(
-                client_id=client_a.id,
+                client_id=client_a.customer_id,
                 kind="Support contract",
                 name="Core switch support (example)",
                 device_id=sw.id,
@@ -243,31 +247,31 @@ def _seed(db: Session, upload_dir: Path) -> None:
     )
     save_attachment(
         db, upload_dir,
-        client_id=client_a.id, target_type="device_check_result", target_id=ap_check_nov.id,
+        client_id=client_a.customer_id, target_type="device_check_result", target_id=ap_check_nov.id,
         original_name="example-AP-01-offline.png", data=ap_png, mime="image/png",
     )
     save_attachment(
         db, upload_dir,
-        client_id=client_a.id, target_type="device_check_result", target_id=ap_check_nov.id,
+        client_id=client_a.customer_id, target_type="device_check_result", target_id=ap_check_nov.id,
         original_name="example-AP-offline-list.png", data=ap_png, mime="image/png",
     )
     save_attachment(
         db, upload_dir,
-        client_id=client_a.id, target_type="issue", target_id=iss1.id,
+        client_id=client_a.customer_id, target_type="issue", target_id=iss1.id,
         original_name="example-ISS-001.png", data=ap_png, mime="image/png",
     )
     save_attachment(
         db, upload_dir,
-        client_id=client_a.id, target_type="device_check_result", target_id=hdd_nov.id,
+        client_id=client_a.customer_id, target_type="device_check_result", target_id=hdd_nov.id,
         original_name="example-NVR-disk-space.png", data=disk_png, mime="image/png",
     )
     save_attachment(
         db, upload_dir,
-        client_id=client_a.id, target_type="device_check_result", target_id=hdd_nov.id,
+        client_id=client_a.customer_id, target_type="device_check_result", target_id=hdd_nov.id,
         original_name="example-disk-space.png", data=disk_png, mime="image/png",
     )
 
-    client_b = _client(db, "Client B", "Head office", "Example of a green month turning amber. Delete before real use.")
+    client_b = _client(db, "Company B", "Head office", "Example of a green month. Delete before real use.")
     fw2, srv2, ap2 = _devices_b(db, client_b)
     oct_b = _check(
         db, client_b, D(2026, 10, 1), "VPN", 1,
@@ -303,7 +307,7 @@ def _seed(db: Session, upload_dir: Path) -> None:
     _seed_simple_checks(db, (oct_b, nov_b), ap2, "Which AP is down", "", "Normal")
     db.add(
         Expiry(
-            client_id=client_b.id,
+            client_id=client_b.customer_id,
             kind="Licence",
             name="Firewall licence (example)",
             device_id=fw2.id,
@@ -313,9 +317,9 @@ def _seed(db: Session, upload_dir: Path) -> None:
         )
     )
 
-    client_c = _client(db, "Client C", "Warehouse", "Example of a month that has not been filled in. Delete before real use.")
+    client_c = _client(db, "Company C", "Warehouse", "Example of a month that has not been filled in. Delete before real use.")
     nvr3 = Device(
-        client_id=client_c.id,
+        site_id=client_c.id,
         device_type="NVR",
         name="NVR-03",
         model="Model-NVR",
@@ -341,7 +345,7 @@ def _seed(db: Session, upload_dir: Path) -> None:
     _copy_device_checks(db, nov_c, nvr3)
     db.add(
         Expiry(
-            client_id=client_c.id,
+            client_id=client_c.customer_id,
             kind="Warranty",
             name="NVR warranty (example)",
             device_id=nvr3.id,
@@ -399,11 +403,14 @@ def _seed_simple_checks(db, months, device, name, command, result):
     return item
 
 
-def _client(db: Session, name: str, site: str, notes: str) -> Client:
-    client = Client(name=name, site=site, notes=notes, is_demo=True)
-    db.add(client)
+def _client(db: Session, name: str, site_name: str, notes: str) -> Site:
+    customer = Customer(name=name, notes=notes, is_demo=True)
+    db.add(customer)
     db.flush()
-    return client
+    site = Site(customer_id=customer.id, name=site_name)
+    db.add(site)
+    db.flush()
+    return site
 
 
 def _devices_a(db: Session, client: Client):
@@ -417,7 +424,7 @@ def _devices_a(db: Session, client: Client):
     devices = []
     for device_type, name, model, serial_no, ip_address, firmware, warranty, sort_order in rows:
         device = Device(
-            client_id=client.id,
+            site_id=client.id,
             device_type=device_type,
             name=name,
             model=model,
@@ -443,7 +450,7 @@ def _devices_b(db: Session, client: Client):
     devices = []
     for device_type, name, model, serial_no, ip_address, firmware, warranty, sort_order in rows:
         device = Device(
-            client_id=client.id,
+            site_id=client.id,
             device_type=device_type,
             name=name,
             model=model,
@@ -462,7 +469,7 @@ def _devices_b(db: Session, client: Client):
 
 def _check(db: Session, client: Client, check_date: date, method: str, hours: float, notes: str) -> Check:
     check = Check(
-        client_id=client.id,
+        site_id=client.id,
         check_date=check_date,
         year_month=f"{check_date.year:04d}-{check_date.month:02d}",
         engineer="Example engineer",
@@ -532,7 +539,7 @@ def _device_months(db, check, rows):
 
 def _issue(db, client, code, found, source, related, device_id, summary, status, action, close_date):
     issue = Issue(
-        client_id=client.id,
+        site_id=client.id,
         code=code,
         first_found_date=found,
         source=source,

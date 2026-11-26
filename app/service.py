@@ -23,11 +23,13 @@ from app.models import (
     Check,
     CheckItem,
     Client,
+    Customer,
     CustomCheckItem,
     Device,
     DeviceCheck,
     DeviceCheckResult,
     DeviceMonth,
+    Site,
     Expiry,
     Issue,
     IssueMonth,
@@ -90,20 +92,20 @@ def optional_choice(value, choices: tuple[str, ...]) -> str | None:
 def previous_check(db: Session, check: Check) -> Check | None:
     return db.scalar(
         select(Check)
-        .where(Check.client_id == check.client_id, Check.check_date < check.check_date)
+        .where(Check.site_id == check.site_id, Check.check_date < check.check_date)
         .order_by(Check.check_date.desc())
     )
 
 
 def is_latest_check(db: Session, check: Check) -> bool:
     latest = db.scalar(
-        select(func.max(Check.check_date)).where(Check.client_id == check.client_id)
+        select(func.max(Check.check_date)).where(Check.site_id == check.site_id)
     )
     return latest == check.check_date
 
 
-def next_issue_code(db: Session, client_id: int) -> str:
-    codes = db.scalars(select(Issue.code).where(Issue.client_id == client_id)).all()
+def next_issue_code(db: Session, site_id: int) -> str:
+    codes = db.scalars(select(Issue.code).where(Issue.site_id == site_id)).all()
     highest = 0
     for code in codes:
         match = re.fullmatch(r"ISS-(\d+)", code or "")
@@ -182,7 +184,7 @@ def save_device_check_results(db: Session, check: Check, form) -> None:
 
 def start_check(
     db: Session,
-    client: Client,
+    site: Site,
     *,
     check_date: date,
     engineer: str,
@@ -196,18 +198,18 @@ def start_check(
     connection_method = clean(connection_method, 20) or ""
     ym = year_month(check_date)
     exists = db.scalar(
-        select(Check.id).where(Check.client_id == client.id, Check.year_month == ym)
+        select(Check.id).where(Check.site_id == site.id, Check.year_month == ym)
     )
     if exists:
         raise FormError("This month already has a check.")
 
     prev = db.scalar(
         select(Check)
-        .where(Check.client_id == client.id, Check.check_date < check_date)
+        .where(Check.site_id == site.id, Check.check_date < check_date)
         .order_by(Check.check_date.desc())
     )
     check = Check(
-        client_id=client.id,
+        site_id=site.id,
         check_date=check_date,
         year_month=ym,
         engineer=engineer,
@@ -220,7 +222,7 @@ def start_check(
 
     devices = db.scalars(
         select(Device)
-        .where(Device.client_id == client.id, Device.added_on <= check_date)
+        .where(Device.site_id == site.id, Device.added_on <= check_date)
         .order_by(Device.sort_order, Device.id)
     ).all()
     prev_months = {}
@@ -243,7 +245,7 @@ def start_check(
 
     issues = db.scalars(
         select(Issue)
-        .where(Issue.client_id == client.id, Issue.first_found_date <= check_date)
+        .where(Issue.site_id == site.id, Issue.first_found_date <= check_date)
         .order_by(Issue.code)
     ).all()
     for issue in issues:
@@ -262,7 +264,7 @@ def start_check(
 
 def add_device(
     db: Session,
-    client: Client,
+    site: Site,
     *,
     device_type: str,
     name: str,
@@ -278,10 +280,10 @@ def add_device(
     if not name:
         raise FormError("Enter a device name.")
     current_max = db.scalar(
-        select(func.max(Device.sort_order)).where(Device.client_id == client.id)
+        select(func.max(Device.sort_order)).where(Device.site_id == site.id)
     )
     device = Device(
-        client_id=client.id,
+        site_id=site.id,
         device_type=device_type,
         name=name,
         model=clean(model, 200),
@@ -295,7 +297,7 @@ def add_device(
     db.add(device)
     db.flush()
     checks = db.scalars(
-        select(Check).where(Check.client_id == client.id, Check.check_date >= added_on)
+        select(Check).where(Check.site_id == site.id, Check.check_date >= added_on)
     ).all()
     for check in checks:
         prev = previous_check(db, check)
@@ -331,7 +333,7 @@ def add_custom_item(db: Session, client: Client, name: str, from_check: Check | 
         return custom
     checks = db.scalars(
         select(Check).where(
-            Check.client_id == client.id,
+            Check.site_id == client.id,
             Check.check_date >= from_check.check_date,
         )
     ).all()
@@ -371,8 +373,14 @@ def add_custom_item(db: Session, client: Client, name: str, from_check: Check | 
     return custom
 
 
+def _customer_id(db: Session, site_id: int | None) -> int | None:
+    site = db.get(Site, site_id) if site_id else None
+    return site.customer_id if site else None
+
+
 def copy_warranty(db: Session, client: Client, device: Device) -> None:
-    if device.client_id != client.id:
+    owner = _customer_id(db, device.site_id)
+    if owner != client.id:
         raise FormError("That device does not belong to this client.")
     if device.warranty_expiry is None:
         raise FormError("This device has no warranty or support date to copy.")
@@ -406,7 +414,7 @@ def include_known_issues(db: Session, check: Check) -> int:
     )
     issues = db.scalars(
         select(Issue).where(
-            Issue.client_id == check.client_id,
+            Issue.site_id == check.site_id,
             Issue.first_found_date <= check.check_date,
         )
     ).all()
@@ -428,8 +436,9 @@ def include_known_issues(db: Session, check: Check) -> int:
 
 
 def build_check_view(db: Session, check: Check) -> dict:
-    client = db.get(Client, check.client_id)
-    att = _attachment_map(db, client.id)
+    site = db.get(Site, check.site_id)
+    customer = db.get(Customer, site.customer_id)
+    att = _attachment_map(db, customer.id)
     abnormal_items = 0
     filled_items = 0
 
@@ -520,7 +529,7 @@ def build_check_view(db: Session, check: Check) -> dict:
         for row in db.scalars(select(IssueMonth).where(IssueMonth.check_id == check.id))
     }
     issues = db.scalars(
-        select(Issue).where(Issue.client_id == client.id).order_by(Issue.code)
+        select(Issue).where(Issue.site_id == site.id).order_by(Issue.code)
     ).all()
     issue_views = []
     open_followups = 0
@@ -554,17 +563,11 @@ def build_check_view(db: Session, check: Check) -> dict:
         "within_30": 0,
         "within_90": 0,
     }
-    light = rag_light(
-        abnormal_items,
-        filled_items,
-        abnormal_devices,
-        open_followups,
-        expired,
-        within_30,
-        within_90,
-    )
+    light = rag_light(abnormal_items, filled_items, abnormal_devices, 0, 0, 0, 0)
     return {
-        "client": client,
+        "client": customer,
+        "customer": customer,
+        "site": site,
         "check": check,
         "light": light,
         "counts": counts,
@@ -598,7 +601,7 @@ def save_check_cover(db: Session, check: Check, form) -> None:
     ym = year_month(check_date)
     clash = db.scalar(
         select(Check.id).where(
-            Check.client_id == check.client_id,
+            Check.site_id == check.site_id,
             Check.year_month == ym,
             Check.id != check.id,
         )
@@ -664,7 +667,7 @@ def update_device(db: Session, device: Device, form) -> None:
             raise FormError("Sort order must be a whole number.") from exc
 
 
-def create_issue(db: Session, client: Client, check: Check | None, form) -> Issue:
+def create_issue(db: Session, site: Site, check: Check | None, form) -> Issue:
     summary = clean(form.get("summary"))
     if not summary:
         raise FormError("Enter an issue summary.")
@@ -673,7 +676,7 @@ def create_issue(db: Session, client: Client, check: Check | None, form) -> Issu
         raise FormError("Enter the date first found.")
     source = require_choice(form.get("source"), ISSUE_SOURCES, "source")
     status = require_choice(form.get("status"), ISSUE_STATUSES, "status")
-    device_id = _optional_device_id(db, client.id, form.get("device_id"))
+    device_id = _optional_site_device(db, site.id, form.get("device_id"))
     related = clean(form.get("related_label"), 300)
     if related is None and device_id:
         device = db.get(Device, device_id)
@@ -684,8 +687,8 @@ def create_issue(db: Session, client: Client, check: Check | None, form) -> Issu
     if status != "Closed":
         close_date = None
     issue = Issue(
-        client_id=client.id,
-        code=next_issue_code(db, client.id),
+        site_id=site.id,
+        code=next_issue_code(db, site.id),
         first_found_date=found,
         source=source,
         related_label=related,
@@ -720,7 +723,7 @@ def update_issue(db: Session, issue: Issue, check: Check | None, form) -> None:
     issue.summary = summary
     issue.first_found_date = found
     issue.source = require_choice(form.get("source"), ISSUE_SOURCES, "source")
-    issue.device_id = _optional_device_id(db, issue.client_id, form.get("device_id"))
+    issue.device_id = _optional_site_device(db, issue.site_id, form.get("device_id"))
     related = clean(form.get("related_label"), 300)
     if related is None and issue.device_id:
         device = db.get(Device, issue.device_id)
@@ -802,6 +805,26 @@ def update_expiry(db: Session, expiry: Expiry, form) -> None:
     expiry.notes = clean(form.get("notes"))
 
 
+def _optional_site_device(db: Session, site_id: int, value) -> int | None:
+    device_id = _device_id_or_none(value)
+    if device_id is None:
+        return None
+    device = db.get(Device, device_id)
+    if device is None or device.site_id != site_id:
+        raise FormError("That device does not belong to this site.")
+    return device_id
+
+
+def _device_id_or_none(value) -> int | None:
+    text = clean(value, 20)
+    if text is None:
+        return None
+    try:
+        return int(text)
+    except ValueError as exc:
+        raise FormError("The related device is not valid.") from exc
+
+
 def _optional_device_id(db: Session, client_id: int, value) -> int | None:
     text = clean(value, 20)
     if text is None:
@@ -811,7 +834,7 @@ def _optional_device_id(db: Session, client_id: int, value) -> int | None:
     except ValueError as exc:
         raise FormError("The related device is not valid.") from exc
     device = db.get(Device, device_id)
-    if device is None or device.client_id != client_id:
+    if device is None or _customer_id(db, device.site_id) != client_id:
         raise FormError("That device does not belong to this client.")
     return device_id
 
@@ -869,7 +892,8 @@ def resolve_attachment_target(db: Session, target_type: str, target_id: int):
         if row is None:
             return None
         device = db.get(Device, row.device_id)
-        return (device.client_id, row) if device else None
+        owner = _customer_id(db, device.site_id) if device else None
+        return (owner, row) if owner else None
     if target_type == "device_check_result":
         row = db.get(DeviceCheckResult, target_id)
         if row is None:
@@ -878,13 +902,15 @@ def resolve_attachment_target(db: Session, target_type: str, target_id: int):
         if definition is None:
             return None
         device = db.get(Device, definition.device_id)
-        return (device.client_id, row) if device else None
+        owner = _customer_id(db, device.site_id) if device else None
+        return (owner, row) if owner else None
     if target_type == "check_item":
         row = db.get(CheckItem, target_id)
         if row is None:
             return None
         check = db.get(Check, row.check_id)
-        return (check.client_id, row) if check else None
+        owner = _customer_id(db, check.site_id) if check else None
+        return (owner, row) if owner else None
     if target_type == "issue":
         row = db.get(Issue, target_id)
         if row is None:

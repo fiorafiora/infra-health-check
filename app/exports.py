@@ -43,7 +43,9 @@ def build_xlsx(view: dict) -> bytes:
     _cover(wb.active, view)
     _devices(wb.create_sheet("Devices"), view)
     _issues(wb.create_sheet("Issues"), view)
-    wb.properties.title = f"{client.name} {client.site} {check.year_month} health check"
+    site = view.get("site")
+    customer = view.get("customer") or client
+    wb.properties.title = f"{customer.name} {site.name if site else ''} {check.year_month} health check"
     wb.properties.creator = "Monthly remote health check"
     buffer = BytesIO()
     wb.save(buffer)
@@ -69,8 +71,8 @@ def _cover(ws, view):
     ws.merge_cells("A2:D2")
     ws["A4"] = "This check"
     rows = [
-        (5, "Client", client.name),
-        (6, "Site", client.site),
+        (5, "Customer", client.name),
+        (6, "Site", view["site"].name if view.get("site") else ""),
         (7, "Check date", check.check_date),
         (8, "Engineer", check.engineer),
         (9, "Duration (hours)", check.duration_hours),
@@ -96,6 +98,7 @@ def _cover(ws, view):
         (24, "Red: a device check is Abnormal."),
         (25, "Green: at least one check is filled in, and none are Abnormal."),
         (26, "Not started: no check result yet."),
+        (27, "This report is this site only. Other sites of the customer are separate reports."),
         (28, "A check records that moment only. It is not 24-hour monitoring."),
         (31, "Repeat issues keep the same ID. Screenshot file names are listed; images are not embedded in this workbook."),
     ]
@@ -128,7 +131,8 @@ def _cover(ws, view):
     ws.page_setup.fitToHeight = 1
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
     ws.sheet_properties.pageSetUpPr.fitToPage = True
-    ws.oddFooter.right.text = f"{client.name}  {check.year_month}"
+    site_name = view["site"].name if view.get("site") else ""
+    ws.oddFooter.right.text = f"{client.name}  {site_name}  {check.year_month}"
     ws.print_title_rows = "1:2"
     ws.sheet_view.showGridLines = False
 
@@ -231,7 +235,8 @@ def _sheet_banner(ws, view, title: str):
     ws["A1"] = title
     ws.merge_cells("A1:F1")
     _paint_title(ws["A1"])
-    ws["A2"] = f"Client  {client.name}    Site  {client.site}"
+    site_name = view["site"].name if view.get("site") else ""
+    ws["A2"] = f"Customer  {client.name}    Site  {site_name}"
     ws.merge_cells("A2:F2")
     ws["A3"] = f"Check date  {check.check_date.isoformat()}    Engineer  {check.engineer}    Overall  {view['light']}"
     ws.merge_cells("A3:F3")
@@ -250,7 +255,7 @@ def _sheet_banner(ws, view, title: str):
     ws.page_margins.top = 0.6
     ws.page_margins.bottom = 0.6
     ws.oddFooter.left.text = "Internal tool. Point-in-time check, not live monitoring."
-    ws.oddFooter.right.text = f"{client.name} {client.site} {check.year_month}"
+    ws.oddFooter.right.text = f"{client.name} {view['site'].name if view.get('site') else ''} {check.year_month}"
     ws.sheet_view.showGridLines = False
     ws.sheet_view.zoomScale = 110
     ws.freeze_panes = "A5"
@@ -586,7 +591,8 @@ def _pdf_html(view: dict, images: list[dict], skipped: list[str]) -> str:
       <header>
         <p class="kicker">Monthly remote health check</p>
         <h1>Monthly remote health check</h1>
-        <p class="meta">{esc(client.name)}　{esc(client.site)}　{check.year_month}</p>
+        <p class="meta">{esc(client.name)}　{esc(view['site'].name if view.get('site') else '')}　{check.year_month}</p>
+        <p class="note">This report is this site only. Other sites of the customer are separate reports.</p>
       </header>
       <section class="hero light-{esc(light).split()[0]}">
         <div>

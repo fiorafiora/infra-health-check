@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
+from app.migrate import migrate
 from app.models import Base
 from app.seed import seed_if_empty
 from app.web import router
@@ -35,6 +36,7 @@ def create_app(data_dir: str | os.PathLike | None = None) -> FastAPI:
         cursor.close()
 
     Base.metadata.create_all(engine)
+    migrate(engine)
     session_factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
     @asynccontextmanager

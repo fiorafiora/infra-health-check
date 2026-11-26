@@ -1,34 +1,30 @@
 {% extends "base.html" %}
 {% from "_macros.html" import options, thumbs, uploader, delete_shot %}
-{% set next = "/clients/" ~ client.id ~ ("?check=" ~ current.id if current else "") %}
-{% block title %}{{ client.name }} · {{ client.site }}{% endblock %}
+{% set next = "/sites/" ~ site.id ~ ("?check=" ~ current.id if current else "") %}
+{% block title %}{{ customer.name }} · {{ site.name }}{% endblock %}
 {% block content %}
 <section class="page-head client-head">
   <div>
-    <p class="eyebrow"><a href="/">Clients</a> / {{ client.site }}</p>
-    <h1>{{ client.name }} <span class="site-name">{{ client.site }}</span></h1>
-    {% if client.is_demo %}<p class="tag-line">Example record, not a real client.</p>{% endif %}
-    {% if client.notes %}<p class="lede">{{ client.notes }}</p>{% endif %}
+    <p class="eyebrow"><a href="/">Customers</a> / <a href="/customers/{{ customer.id }}">{{ customer.name }}</a> / {{ site.name }}</p>
+    <h1>{{ customer.name }} <span class="site-name">{{ site.name }}</span></h1>
+    {% if customer.is_demo %}<p class="tag-line">Example record, not a real customer.</p>{% endif %}
+    {% if customer.notes %}<p class="lede">{{ customer.notes }}</p>{% endif %}
   </div>
   <details class="card tight">
-    <summary>Edit client</summary>
-    <form method="post" action="/clients/{{ client.id }}">
+    <summary>Edit site</summary>
+    <form method="post" action="/sites/{{ site.id }}">
       <input type="hidden" name="check_id" value="{{ current.id if current else '' }}">
-      <label>Client name<input name="name" required maxlength="200" value="{{ client.name }}"></label>
-      <label>Site<input name="site" required maxlength="200" value="{{ client.site }}"></label>
-      <label>Notes<textarea name="notes" rows="3">{{ client.notes or '' }}</textarea></label>
+      <label>Site name<input name="name" required maxlength="200" value="{{ site.name }}"></label>
       <button class="btn" type="submit">Save</button>
-    </form>
-    <form method="post" action="/clients/{{ client.id }}/delete">
-      <button class="btn danger" type="submit" data-confirm="Delete {{ client.name }} / {{ client.site }}? Devices, checks, and screenshots will all be removed.">Delete client</button>
     </form>
   </details>
 </section>
 
 <nav class="subnav" aria-label="On this page">
   <a href="#months">Months</a>
-  <a href="#summary">Cover</a>
-  <a href="#devices">Devices</a>
+  {% if current %}<a href="#summary">Cover</a>{% endif %}
+  <a href="#add-device">Add device</a>
+  {% if current %}<a href="#devices">Devices</a>{% endif %}
 </nav>
 
 <section id="months" class="card">
@@ -37,7 +33,7 @@
     {% if pills %}
     <div class="pills">
       {% for pill in pills %}
-      <a class="pill{% if current and pill.check.id == current.id %} active{% endif %}" data-month="{{ pill.check.year_month }}" data-light="{{ pill.light }}" href="/clients/{{ client.id }}?check={{ pill.check.id }}">
+      <a class="pill{% if current and pill.check.id == current.id %} active{% endif %}" data-month="{{ pill.check.year_month }}" data-light="{{ pill.light }}" href="/sites/{{ site.id }}?check={{ pill.check.id }}">
         <span>{{ pill.check.year_month }}</span>
         <span class="light" data-light="{{ pill.light }}">{{ pill.light }}</span>
       </a>
@@ -47,23 +43,72 @@
   </div>
   <details class="start-month"{% if not current %} open{% endif %}>
     <summary>{% if current %}Start another month{% else %}Start the first check{% endif %}</summary>
-    <form class="grid-form" method="post" action="/clients/{{ client.id }}/checks">
+    <form class="grid-form" method="post" action="/sites/{{ site.id }}/checks">
       <label>Check date<input type="date" name="check_date" required value="{{ today.isoformat() }}"></label>
       <label>Engineer<input name="engineer" required maxlength="100" value="{{ current.engineer if current else '' }}" placeholder="For example, K L"></label>
       <label>Duration (hours)<input name="duration_hours" inputmode="decimal" placeholder="1.5" value=""></label>
       <label class="span-2">Notes<textarea name="notes" rows="2" placeholder="Optional"></textarea></label>
       <div class="span-2">
         <button class="btn" type="submit">Create this month</button>
-        <p class="hint">One visit per client per month. A new month loads this site’s devices and the checks you set on each device. Results start blank.</p>
+        <p class="hint">One report per site per month. Other stores are not included. A new month loads this site’s devices and the checks you set on each device. Results start blank.</p>
       </div>
     </form>
+  </details>
+</section>
+
+<section id="add-device" class="card">
+  <h2>Add device</h2>
+  <p class="hint">Devices added here belong to {{ site.name }} only. They are not copied to other stores.</p>
+  <details class="start-month" open>
+    <summary>Add or edit devices</summary>
+    <div class="split">
+      <form class="subcard" method="post" action="/sites/{{ site.id }}/devices">
+        <h3>Add a device</h3>
+        <input type="hidden" name="check_id" value="{{ current.id if current else '' }}">
+        <label>Type<select name="device_type" required>{{ options(DEVICE_TYPES, "Server") }}</select></label>
+        <label>Name<input name="name" required maxlength="200" placeholder="NVR-01"></label>
+        <label>IP address<input name="ip_address" maxlength="100" placeholder="192.0.2.30"></label>
+        <label>Model<input name="model" maxlength="200"></label>
+        <label>Serial<input name="serial_no" maxlength="200"></label>
+        <label>Firmware<input name="firmware" maxlength="100"></label>
+        <label>Warranty / support expiry<input type="date" name="warranty_expiry"></label>
+        <label>On list from<input type="date" name="added_on" value="{{ current.check_date.isoformat() if current else today.isoformat() }}"></label>
+        <button class="btn" type="submit">Add device</button>
+      </form>
+      <div class="subcard">
+        <h3>Edit a device</h3>
+        {% for device in devices %}
+        <details>
+          <summary>{{ device.device_type }} · {{ device.name }}</summary>
+          <form method="post" action="/devices/{{ device.id }}">
+            <input type="hidden" name="check_id" value="{{ current.id if current else '' }}">
+            <label>Type<select name="device_type">{{ options(DEVICE_TYPES, device.device_type) }}</select></label>
+            <label>Name<input name="name" required value="{{ device.name }}"></label>
+            <label>Model<input name="model" value="{{ device.model or '' }}"></label>
+            <label>Serial<input name="serial_no" value="{{ device.serial_no or '' }}"></label>
+            <label>IP address<input name="ip_address" value="{{ device.ip_address or '' }}"></label>
+            <label>Firmware<input name="firmware" value="{{ device.firmware or '' }}"></label>
+            <label>Warranty / support expiry<input type="date" name="warranty_expiry" value="{{ device.warranty_expiry.isoformat() if device.warranty_expiry else '' }}"></label>
+            <label>Sort order<input name="sort_order" inputmode="numeric" value="{{ device.sort_order }}"></label>
+            <button class="btn small" type="submit">Save</button>
+          </form>
+          <form method="post" action="/devices/{{ device.id }}/delete">
+            <input type="hidden" name="check_id" value="{{ current.id if current else '' }}">
+            <button class="link danger" type="submit" data-confirm="Delete {{ device.name }}?">Delete</button>
+          </form>
+        </details>
+        {% else %}
+        <p class="empty">No devices yet.</p>
+        {% endfor %}
+      </div>
+    </div>
   </details>
 </section>
 
 {% if not current %}
 <section class="card empty-state">
   <h2>No month yet</h2>
-  <p>Create the cover first (check date and engineer), then fill each device’s checks.</p>
+  <p>Add this store’s devices above, then start a month. The report will not include other stores.</p>
 </section>
 {% else %}
 <section id="summary" class="card hero-card" data-light="{{ view.light }}">
@@ -71,7 +116,7 @@
     <div>
       <p class="eyebrow">Overall</p>
       <p class="hero-light">{{ view.light }}</p>
-      <p class="hint">Red if any check is Abnormal. Green when checks are filled and none are abnormal.</p>
+      <p class="hint">This report is only {{ site.name }}. Other stores of {{ customer.name }} stay in their own reports. Red if any check is Abnormal. Green when checks are filled and none are abnormal.</p>
     </div>
     <div class="exports">
       <a class="btn" href="/checks/{{ current.id }}/export.pdf">Export PDF</a>
@@ -109,53 +154,8 @@
 <section id="devices" class="card">
   <div class="card-head">
     <h2>Devices</h2>
-    <p class="hint">Set each device’s checks once. A new month loads them here. Mark Normal or Abnormal, write the issue, and upload a picture on that row.</p>
+    <p class="hint">Checks for this month. A new month loads the checks you saved on each device.</p>
   </div>
-
-  <details class="start-month" open>
-    <summary>Add or edit devices</summary>
-    <div class="split">
-      <form class="subcard" method="post" action="/clients/{{ client.id }}/devices">
-        <h3>Add a device</h3>
-        <input type="hidden" name="check_id" value="{{ current.id }}">
-        <label>Type<select name="device_type" required>{{ options(DEVICE_TYPES, "Server") }}</select></label>
-        <label>Name<input name="name" required maxlength="200" placeholder="NVR-01"></label>
-        <label>IP address<input name="ip_address" maxlength="100" placeholder="192.0.2.30"></label>
-        <label>Model<input name="model" maxlength="200"></label>
-        <label>Serial<input name="serial_no" maxlength="200"></label>
-        <label>Firmware<input name="firmware" maxlength="100"></label>
-        <label>Warranty / support expiry<input type="date" name="warranty_expiry"></label>
-        <label>On list from<input type="date" name="added_on" value="{{ current.check_date.isoformat() }}"></label>
-        <button class="btn" type="submit">Add device</button>
-      </form>
-      <div class="subcard">
-        <h3>Edit a device</h3>
-        {% for device in devices %}
-        <details>
-          <summary>{{ device.device_type }} · {{ device.name }}</summary>
-          <form method="post" action="/devices/{{ device.id }}">
-            <input type="hidden" name="check_id" value="{{ current.id }}">
-            <label>Type<select name="device_type">{{ options(DEVICE_TYPES, device.device_type) }}</select></label>
-            <label>Name<input name="name" required value="{{ device.name }}"></label>
-            <label>Model<input name="model" value="{{ device.model or '' }}"></label>
-            <label>Serial<input name="serial_no" value="{{ device.serial_no or '' }}"></label>
-            <label>IP address<input name="ip_address" value="{{ device.ip_address or '' }}"></label>
-            <label>Firmware<input name="firmware" value="{{ device.firmware or '' }}"></label>
-            <label>Warranty / support expiry<input type="date" name="warranty_expiry" value="{{ device.warranty_expiry.isoformat() if device.warranty_expiry else '' }}"></label>
-            <label>Sort order<input name="sort_order" inputmode="numeric" value="{{ device.sort_order }}"></label>
-            <button class="btn small" type="submit">Save</button>
-          </form>
-          <form method="post" action="/devices/{{ device.id }}/delete">
-            <input type="hidden" name="check_id" value="{{ current.id }}">
-            <button class="link danger" type="submit" data-confirm="Delete {{ device.name }}?">Delete</button>
-          </form>
-        </details>
-        {% else %}
-        <p class="empty">No devices yet.</p>
-        {% endfor %}
-      </div>
-    </div>
-  </details>
 
   {% if view.devices %}
   <form id="device-checks-form" method="post" action="/checks/{{ current.id }}/device-checks"></form>

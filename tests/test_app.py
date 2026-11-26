@@ -23,16 +23,18 @@ def client(tmp_path):
         yield test_client
 
 
-def _row_light(html: str, name: str) -> str:
-    match = re.search(rf'data-client="{name}" data-site="[^"]*" data-light="([^"]*)"', html)
-    assert match, html
-    return match.group(1)
-
-
-def _client_id(html: str, name: str) -> str:
-    match = re.search(rf'href="/clients/(\d+)\?check=\d+">{name}', html)
+def _customer_id(html: str, name: str) -> str:
+    match = re.search(rf'href="/customers/(\d+)">{name}', html)
     assert match, name
     return match.group(1)
+
+
+def _site_page(client, home_html: str, customer: str, site: str):
+    customer_id = _customer_id(home_html, customer)
+    page = client.get(f"/customers/{customer_id}")
+    match = re.search(rf'href="/sites/(\d+)(?:\?check=\d+)?">{site}', page.text)
+    assert match, page.text
+    return client.get(f"/sites/{match.group(1)}")
 
 
 def test_seeded_home_shows_three_demo_lights(client):
@@ -47,16 +49,28 @@ def test_seeded_home_shows_three_demo_lights(client):
     font = client.get("/static/fonts/noto-sans-tc-400.woff2")
     assert font.status_code == 200
     assert font.headers["content-type"].startswith("font/") or len(font.content) > 1000
-    assert _row_light(body, "Client A") == "Red"
-    assert _row_light(body, "Client B") == "Green"
-    assert _row_light(body, "Client C") == "Not started"
-    assert "Example site" in body
+    assert "Company A" in body
+    assert "Customers" in body
+    company = client.get(f"/customers/{_customer_id(body, 'Company A')}")
+    assert "Main store" in company.text
+    assert "Branch store" in company.text
+    assert 'data-site="Main store" data-light="Red"' in company.text
+    branch = re.search(r'href="(/sites/\d+)">Branch store', company.text)
+    assert branch
+    branch_page = client.get(branch.group(1))
+    assert 'id="add-device"' in branch_page.text
+    assert branch_page.text.find('id="add-device"') < branch_page.text.find('id="devices"') or 'id="devices"' not in branch_page.text
+    assert "AP-01" not in branch_page.text
+    assert "SRV-01" not in branch_page.text
+    company_b = client.get(f"/customers/{_customer_id(body, 'Company B')}")
+    assert 'data-site="Head office" data-light="Green"' in company_b.text
+    company_c = client.get(f"/customers/{_customer_id(body, 'Company C')}")
+    assert 'data-site="Warehouse" data-light="Not started"' in company_c.text
 
 
 def test_client_a_november_compares_with_last_month(client):
     home = client.get("/")
-    client_id = _client_id(home.text, "Client A")
-    page = client.get(f"/clients/{client_id}")
+    page = _site_page(client, home.text, "Company A", "Main store")
     assert page.status_code == 200
     assert 'data-light="Red"' in page.text
     assert "Which AP is down" in page.text
@@ -66,20 +80,19 @@ def test_client_a_november_compares_with_last_month(client):
     assert "AP-01" in page.text
     assert 'data-month="2026-10"' in page.text
     assert 'data-month="2026-11"' in page.text
-    october = re.search(r'data-month="2026-10" data-light="([^"]+)" href="/clients/\d+\?check=(\d+)"', page.text)
+    october = re.search(r'data-month="2026-10" data-light="([^"]+)" href="/sites/(\d+)\?check=(\d+)"', page.text)
     assert october
     assert october.group(1) == "Red"
-    older = client.get(f"/clients/{client_id}?check={october.group(2)}")
+    older = client.get(f"/sites/{october.group(2)}?check={october.group(3)}")
     assert "Under 15% free" not in older.text
     assert "AP-01 offline" in older.text
 
 
 def test_client_b_turns_from_green_to_yellow(client):
     home = client.get("/")
-    client_id = _client_id(home.text, "Client B")
-    page = client.get(f"/clients/{client_id}")
+    page = _site_page(client, home.text, "Company B", "Head office")
     assert 'data-light="Green"' in page.text
-    october = re.search(r'data-month="2026-10" data-light="([^"]+)" href="/clients/\d+\?check=(\d+)"', page.text)
+    october = re.search(r'data-month="2026-10" data-light="([^"]+)" href="/sites/\d+\?check=(\d+)"', page.text)
     assert october.group(1) == "Green"
     assert expiry_state(date(2027, 1, 15), date(2026, 10, 1))[1] == "Normal"
     assert expiry_state(date(2027, 1, 15), date(2026, 11, 1))[1] == "Due in 90 days"
@@ -87,8 +100,7 @@ def test_client_b_turns_from_green_to_yellow(client):
 
 def test_excel_and_pdf_export(client):
     home = client.get("/")
-    client_id = _client_id(home.text, "Client A")
-    page = client.get(f"/clients/{client_id}")
+    page = _site_page(client, home.text, "Company A", "Main store")
     check_id = re.search(r"/checks/(\d+)/export.xlsx", page.text).group(1)
     workbook_response = client.get(f"/checks/{check_id}/export.xlsx")
     assert workbook_response.status_code == 200
@@ -98,13 +110,66 @@ def test_excel_and_pdf_export(client):
     assert "AnyDesk" not in page.text
     assert "Expiries" not in page.text
     cover = workbook["Cover"]
-    assert cover["B5"].value == "Client A"
+    assert cover["B5"].value == "Company A"
     assert cover["B10"].value == "Red"
     devices = workbook["Devices"]
     assert devices["A4"].value == "Type"
     blobs = [str(devices.cell(row, 9).value or "") for row in range(5, 12)]
     assert any("Which AP is down" in blob and "Abnormal" in blob for blob in blobs)
     assert any("HDD" in blob for blob in blobs)
+
+    assert cover["B6"].value == "Main store"
+    assert "Branch store" not in str(cover["B6"].value)
+    blobs_text = " ".join(blobs)
+    assert "BR-AP" not in blobs_text
+
+    branch = _site_page(client, home.text, "Company A", "Branch store")
+    started = client.post(
+        re.search(r'action="(/sites/\d+/checks)"', branch.text).group(1),
+        data={"check_date": "2026-11-03", "engineer": "Tester"},
+        follow_redirects=True,
+    )
+    branch_site = re.search(r"/sites/(\d+)", str(started.url)).group(1)
+    branch_check = re.search(r"/checks/(\d+)/export", started.text).group(1)
+    client.post(
+        f"/sites/{branch_site}/devices",
+        data={"check_id": branch_check, "device_type": "AP", "name": "BR-AP", "added_on": "2026-11-03"},
+        follow_redirects=True,
+    )
+    logged = client.post(
+        f"/sites/{branch_site}/issues",
+        data={
+            "check_id": branch_check,
+            "first_found_date": "2026-11-03",
+            "source": "Inventory",
+            "status": "Open",
+            "related_label": "BR-AP",
+            "summary": "Branch store only",
+        },
+        follow_redirects=True,
+    )
+    assert "ISS-001" in logged.text
+    main_again = load_workbook(BytesIO(client.get(f"/checks/{check_id}/export.xlsx").content))
+    main_values = " ".join(
+        str(cell.value or "")
+        for sheet in main_again.worksheets
+        for row in sheet.iter_rows()
+        for cell in row
+    )
+    assert "BR-AP" not in main_values
+    assert "Branch store only" not in main_values
+    assert "Main store" in main_values
+    branch_book = load_workbook(BytesIO(client.get(f"/checks/{branch_check}/export.xlsx").content))
+    branch_values = " ".join(
+        str(cell.value or "")
+        for sheet in branch_book.worksheets
+        for row in sheet.iter_rows()
+        for cell in row
+    )
+    assert "BR-AP" in branch_values
+    assert "Branch store only" in branch_values
+    assert "AP-01" not in branch_values
+    assert "NVR-01" not in branch_values
 
     pdf = client.get(f"/checks/{check_id}/export.pdf")
     if pdf.status_code != 200:
@@ -114,10 +179,12 @@ def test_excel_and_pdf_export(client):
 
 
 def test_new_client_month_flow_upload_and_copy_warranty(client):
-    created = client.post("/clients", data={"name": "Test client", "site": "Test site"}, follow_redirects=True)
-    client_id = re.search(r"/clients/(\d+)", str(created.url)).group(1)
+    created = client.post("/customers", data={"name": "Test customer"}, follow_redirects=True)
+    customer_id = re.search(r"/customers/(\d+)", str(created.url)).group(1)
+    made_site = client.post(f"/customers/{customer_id}/sites", data={"name": "Test site"}, follow_redirects=True)
+    site_id = re.search(r"/sites/(\d+)", str(made_site.url)).group(1)
     started = client.post(
-        f"/clients/{client_id}/checks",
+        f"/sites/{site_id}/checks",
         data={
             "check_date": "2026-10-01",
             "engineer": "Tester",
@@ -130,7 +197,7 @@ def test_new_client_month_flow_upload_and_copy_warranty(client):
     assert 'data-light="Not started"' in started.text
     check_id = re.search(r"/checks/(\d+)/export", started.text).group(1)
     added_device = client.post(
-        f"/clients/{client_id}/devices",
+        f"/sites/{site_id}/devices",
         data={
             "check_id": check_id,
             "device_type": "NVR",
@@ -157,14 +224,14 @@ def test_new_client_month_flow_upload_and_copy_warranty(client):
     assert 'data-light="Red"' in saved.text
 
     again = client.post(
-        f"/clients/{client_id}/checks",
+        f"/sites/{site_id}/checks",
         data={"check_date": "2026-10-15", "engineer": "Tester", "connection_method": "VPN"},
         follow_redirects=True,
     )
     assert "This month already has a check." in again.text
 
     november = client.post(
-        f"/clients/{client_id}/checks",
+        f"/sites/{site_id}/checks",
         data={
             "check_date": "2026-11-02",
             "engineer": "Tester",
@@ -187,14 +254,14 @@ def test_new_client_month_flow_upload_and_copy_warranty(client):
     item_id = nov_ids[0]
     rejected = client.post(
         "/attachments",
-        data={"target_type": "device_check_result", "target_id": item_id, "next": f"/clients/{client_id}?check={nov_check}"},
+        data={"target_type": "device_check_result", "target_id": item_id, "next": f"/sites/{site_id}?check={nov_check}"},
         files={"files": ("bad.gif", b"GIF89a", "image/gif")},
         follow_redirects=True,
     )
     assert "Only jpg" in rejected.text
     uploaded = client.post(
         "/attachments",
-        data={"target_type": "device_check_result", "target_id": item_id, "next": f"/clients/{client_id}?check={nov_check}"},
+        data={"target_type": "device_check_result", "target_id": item_id, "next": f"/sites/{site_id}?check={nov_check}"},
         files={"files": ("ping.png", _png_bytes(), "image/png")},
         follow_redirects=True,
     )
@@ -206,7 +273,7 @@ def test_new_client_month_flow_upload_and_copy_warranty(client):
     assert image.headers["content-type"].startswith("image/")
 
     added = client.post(
-        f"/clients/{client_id}/devices",
+        f"/sites/{site_id}/devices",
         data={
             "check_id": nov_check,
             "device_type": "Firewall",
@@ -224,16 +291,18 @@ def test_new_client_month_flow_upload_and_copy_warranty(client):
 
 
 def test_issue_keeps_its_code(client):
-    created = client.post("/clients", data={"name": "Issue client", "site": "A"}, follow_redirects=True)
-    client_id = re.search(r"/clients/(\d+)", str(created.url)).group(1)
+    created = client.post("/customers", data={"name": "Issue customer"}, follow_redirects=True)
+    customer_id = re.search(r"/customers/(\d+)", str(created.url)).group(1)
+    made_site = client.post(f"/customers/{customer_id}/sites", data={"name": "A"}, follow_redirects=True)
+    site_id = re.search(r"/sites/(\d+)", str(made_site.url)).group(1)
     started = client.post(
-        f"/clients/{client_id}/checks",
+        f"/sites/{site_id}/checks",
         data={"check_date": "2026-11-01", "engineer": "Tester", "connection_method": "Other"},
         follow_redirects=True,
     )
     check_id = re.search(r"/checks/(\d+)/export", started.text).group(1)
     first = client.post(
-        f"/clients/{client_id}/issues",
+        f"/sites/{site_id}/issues",
         data={
             "check_id": check_id,
             "first_found_date": "2026-09-15",
@@ -248,7 +317,7 @@ def test_issue_keeps_its_code(client):
     )
     assert "ISS-001" in first.text
     second_month = client.post(
-        f"/clients/{client_id}/checks",
+        f"/sites/{site_id}/checks",
         data={"check_date": "2026-12-01", "engineer": "Tester", "connection_method": "VPN"},
         follow_redirects=True,
     )

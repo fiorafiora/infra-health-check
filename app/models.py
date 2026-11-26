@@ -1,4 +1,4 @@
-"""SQLite tables. One row per client site; months are separate check snapshots."""
+"""SQLite tables. A customer has sites; each site has its own months."""
 
 from datetime import date, datetime
 
@@ -31,30 +31,43 @@ class Meta(Base):
     value: Mapped[str] = mapped_column(String(200), default="")
 
 
-class Client(Base):
+class Customer(Base):
+    """A company. One customer can have several sites (stores)."""
+
     __tablename__ = "clients"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
-    site: Mapped[str] = mapped_column(String(200))
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
-    devices: Mapped[list["Device"]] = relationship(
-        back_populates="client", passive_deletes=True
+    sites: Mapped[list["Site"]] = relationship(back_populates="customer", passive_deletes=True)
+
+
+class Site(Base):
+    __tablename__ = "sites"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    customer_id: Mapped[int] = mapped_column(
+        ForeignKey("clients.id", ondelete="CASCADE"), index=True
     )
-    checks: Mapped[list["Check"]] = relationship(
-        back_populates="client", passive_deletes=True
-    )
+    name: Mapped[str] = mapped_column(String(200))
+
+    customer: Mapped[Customer] = relationship(back_populates="sites")
+    devices: Mapped[list["Device"]] = relationship(back_populates="site", passive_deletes=True)
+    checks: Mapped[list["Check"]] = relationship(back_populates="site", passive_deletes=True)
+
+
+Client = Customer
 
 
 class Device(Base):
     __tablename__ = "devices"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    client_id: Mapped[int] = mapped_column(
-        ForeignKey("clients.id", ondelete="CASCADE"), index=True
+    site_id: Mapped[int] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), index=True
     )
     device_type: Mapped[str] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(200))
@@ -67,7 +80,7 @@ class Device(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
-    client: Mapped[Client] = relationship(back_populates="devices")
+    site: Mapped[Site] = relationship(back_populates="devices")
     months: Mapped[list["DeviceMonth"]] = relationship(
         back_populates="device", passive_deletes=True
     )
@@ -76,12 +89,12 @@ class Device(Base):
 class Check(Base):
     __tablename__ = "checks"
     __table_args__ = (
-        UniqueConstraint("client_id", "year_month", name="uq_client_month"),
+        UniqueConstraint("site_id", "year_month", name="uq_site_month"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    client_id: Mapped[int] = mapped_column(
-        ForeignKey("clients.id", ondelete="CASCADE"), index=True
+    site_id: Mapped[int] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), index=True
     )
     check_date: Mapped[date] = mapped_column(Date)
     year_month: Mapped[str] = mapped_column(String(7))
@@ -91,7 +104,7 @@ class Check(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
-    client: Mapped[Client] = relationship(back_populates="checks")
+    site: Mapped[Site] = relationship(back_populates="checks")
     items: Mapped[list["CheckItem"]] = relationship(
         back_populates="check", passive_deletes=True
     )
@@ -200,14 +213,16 @@ class CheckItem(Base):
 
 
 class Issue(Base):
+    """An issue belongs to one site. It is not shared across a customer's stores."""
+
     __tablename__ = "issues"
     __table_args__ = (
-        UniqueConstraint("client_id", "code", name="uq_client_issue_code"),
+        UniqueConstraint("site_id", "code", name="uq_site_issue_code"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    client_id: Mapped[int] = mapped_column(
-        ForeignKey("clients.id", ondelete="CASCADE"), index=True
+    site_id: Mapped[int] = mapped_column(
+        ForeignKey("sites.id", ondelete="CASCADE"), index=True
     )
     code: Mapped[str] = mapped_column(String(20))
     first_found_date: Mapped[date] = mapped_column(Date)

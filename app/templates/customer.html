@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ customer.name }}{% endblock %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/">Customers</a></p>
+    <h1>{{ customer.name }}</h1>
+    {% if customer.is_demo %}<p class="tag-line">Example record, not a real customer.</p>{% endif %}
+    {% if customer.notes %}<p class="lede">{{ customer.notes }}</p>{% endif %}
+  </div>
+  <details class="card tight">
+    <summary>Edit customer</summary>
+    <form method="post" action="/customers/{{ customer.id }}">
+      <label>Customer name<input name="name" required maxlength="200" value="{{ customer.name }}"></label>
+      <label>Notes<textarea name="notes" rows="3">{{ customer.notes or '' }}</textarea></label>
+      <button class="btn" type="submit">Save</button>
+    </form>
+    <form method="post" action="/customers/{{ customer.id }}/delete">
+      <button class="btn danger" type="submit" data-confirm="Delete {{ customer.name }} and every site under it?">Delete customer</button>
+    </form>
+  </details>
+</section>
+
+<section class="card">
+  <h2>Sites</h2>
+  <p class="hint">Each site has its own monthly report. Stores are not combined into one report.</p>
+  {% if rows %}
+  <div class="sheet">
+    <table class="list">
+      <thead>
+        <tr>
+          <th>Site</th>
+          <th>Latest month</th>
+          <th>Overall</th>
+          <th>Devices</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr data-site="{{ row.site.name }}" data-light="{{ row.light }}">
+          <td><a class="name-link" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">{{ row.site.name }}</a></td>
+          <td>{{ row.year_month or "—" }}</td>
+          <td>{% if row.light %}<span class="light" data-light="{{ row.light }}">{{ row.light }}</span>{% else %}—{% endif %}</td>
+          <td>{{ row.device_count }}</td>
+          <td><a class="btn small ghost" href="/sites/{{ row.site.id }}{% if row.check_id %}?check={{ row.check_id }}{% endif %}">Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty">No sites yet.</p>
+  {% endif %}
+  <form class="inline-add" method="post" action="/customers/{{ customer.id }}/sites">
+    <label>New site<input name="name" required maxlength="200" placeholder="For example, Mong Kok store"></label>
+    <button class="btn" type="submit">Add site</button>
+  </form>
+</section>
+{% endblock %}

@@ -1,6 +1,6 @@
 # Monthly remote health check
 
-An internal web app for a Hong Kong network engineer and colleagues. Record each month’s check here after you have looked at the client site.
+An internal web app for a Hong Kong network engineer and colleagues. Record each month’s check here after you have looked at a customer site.
 
 There is **no login**. Keep it on your own PC, the office LAN, or an Ubuntu VM that is only reachable over VPN. Do not publish it on the public internet.
 
@@ -62,36 +62,38 @@ This version has no HTTPS, SMTP, or SSO. If you later put a reverse proxy in fro
 
 ## Example data
 
-The first start, on an empty database, loads three example clients. Addresses are in the documentation range `192.0.2.0/24`.
+The first start, on an empty database, loads three example customers. Addresses are in the documentation range `192.0.2.0/24`.
 
-| Client | What you should see |
-| --- | --- |
-| Client A / Example site | October and November 2026. November is red: AP-01 offline (ISS-001), a new NVR disk fault, and a recovered backup |
-| Client B / Head office | October green, November amber (firewall licence enters the 90-day window; the checklist matches last month) |
-| Client C / Warehouse | Cover only, so the light is Not started |
+| Customer | Sites | What you should see |
+| --- | --- | --- |
+| Company A | Main store, Branch store | Main store has October and November 2026. November is red: AP-01 offline, and an NVR disk fault. Branch store has no devices yet |
+| Company B | Head office | October and November are green |
+| Company C | Warehouse | Cover only, so the light is Not started |
 
 Delete them before real use. After they are gone, a restart does **not** load them again. To start over, run `docker compose down -v` and start again. That deletes real records too.
 
+An older database, from before customers had separate sites, is updated on startup. Each existing customer becomes one site, using the site name that was stored on the customer. Example customers are not replaced.
+
 ## What you can do
 
-- Several clients. Each has devices and one check per month.
+- Several customers. One customer can have several sites, for example different stores. Each site has its own devices, its own month, and its own PDF and Excel report. Other stores are not included.
+- Add a device in its own section. The device list below is the checks for the open month.
 - Device types: Server, Router, Switch, Firewall, AP, NVR, Other.
 - Start a month with the check date, engineer, duration, and notes.
 - Overall light:
-  - **Red** — a device check is Abnormal, or something is Expired
+  - **Red** — a device check is Abnormal
   - **Green** — at least one check is filled in, and none are Abnormal
   - **Not started** — no check result yet
 - Each device has its own check list, set once. An NVR might have HDD and playback. An AP might have which AP is down. A router or switch can store the command to run. A new month loads those checks with blank results.
 - On the device, mark each check Normal or Abnormal, write the issue, and upload a screenshot.
 - Screenshots attach to a device check. Thumbnails open to the full image. 5 MB each, 8 per item.
-- Export one client and month as PDF and Excel. The PDF embeds up to 8 thumbnails. The Excel file lists file names.
+- Export one site and month as PDF and Excel. The PDF embeds up to 8 thumbnails. The Excel file lists file names.
 
 ## Not in this version
 
 - Login, accounts, or permissions
 - Public HTTPS, SMTP, or SSO
 - Live monitoring or alerts between monthly visits
-- A database migration tool
 - Inserting a month between two existing months does not rewrite the newer month’s “last month” column. Create months in date order
 - The container process runs as root. Keep port 8080 on the internal network
 
